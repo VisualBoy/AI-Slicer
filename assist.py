@@ -3,183 +3,253 @@ import time
 from pygame import mixer
 import os
 import json
-import threading
-import tools
-import shared_variables
+import logging # Aggiungi import per logging
+import tools # Assicurati che tools sia importato
+import shared_variables # Importa per last_gcode_path
 
-# Initialize OpenAI with the API Key from your env variables
+# Configura il logging anche qui se vuoi messaggi specifici da assist.py
+# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-mixer.init()
+# mixer.init() # Mixer viene inizializzato in ai-slicer.py
 
-# Carica le funzioni
-with open('functions.json', 'r') as f:
-    functions_list = json.load(f)['functions']
-
-# Aggiungi questa riga per trasformare la lista per l'API
-openai_tools = [{"type": "function", "function": func} for func in functions_list]
+# Carica le funzioni e trasformale per l'API
+try:
+    with open('functions.json', 'r') as f:
+        functions_list = json.load(f)['functions']
+    openai_tools = [{"type": "function", "function": func} for func in functions_list]
+    logging.info("Definizioni funzioni caricate e trasformate per OpenAI.")
+except Exception as e:
+    logging.error(f"Errore nel caricare functions.json: {e}")
+    openai_tools = [] # Lista vuota per evitare crash se il file non esiste o è corrotto
 
 function_map = {}
-for func_name in dir(tools):
-    if not func_name.startswith('_'):
-        func = getattr(tools, func_name)
-        if callable(func):
-            function_map[func_name] = func
+try:
+    for func_name in dir(tools):
+        if not func_name.startswith('_'):
+            func = getattr(tools, func_name)
+            if callable(func):
+                function_map[func_name] = func
+    logging.info(f"Function map creata: {list(function_map.keys())}")
+except Exception as e:
+    logging.error(f"Errore nel creare function_map: {e}")
 
-# Conversation history
+
 conversation_history = [
     {
         "role": "system",
-        "content": "Sei un assistente AI chiamato Arturo. Il tuo scopo è aiutare con la stampa 3D usando PrusaSlicer. Parla sempre in italiano. Rivolgiti all'utente come 'Glitch'. Mantieni le tue risposte brevi e concise, se possibile. L'utente utilizza un sistema di speech2text per interagire, tienine conto se noti eventuali errori nelle risposte."
+        "content": "Sei un assistente AI chiamato Arturo. Il tuo scopo è aiutare con la stampa 3D usando PrusaSlicer. Parla sempre in italiano. Rivolgiti all'utente come 'Glitch'. Mantieni le tue risposte brevi e concise. L'utente usa speech2text, quindi considera possibili errori di trascrizione. Se lo slicing di un modello ha successo e viene generato un file G-code, chiedi sempre all'utente se desidera visualizzare un'anteprima del G-code. Se accetta, chiama la funzione 'view_gcode' con il percorso del file appena creato. Se l'utente chiede di impostare una preferenza, usa la funzione 'set_preference'."
     }
 ]
 
 def ask_question_memory(question):
-    """
-    Processes a user's question, updates conversation history,
-    handles tool calls, and fetches a response from OpenAI.
-    """
+    # Aggiungi il messaggio dell'utente (questo è già corretto)
     conversation_history.append({"role": "user", "content": question})
-    print("\n[DEV] Sending request to OpenAI...")
+    logging.info(f"\n[DEV] Invio richiesta a OpenAI con la domanda: {question}")
+    
+    # Debug della cronologia PRIMA della chiamata API
+    try:
+        # Per il debug, serializziamo solo i campi noti e sicuri
+        serializable_history = []
+        for msg in conversation_history:
+            item = {"role": msg.get("role"), "content": msg.get("content")}
+            if msg.get("tool_calls"): # Aggiungi se presente
+                item["tool_calls"] = [{"id": tc.id, "type": tc.type, "function": {"name": tc.function.name, "arguments": tc.function.arguments}} for tc in msg.get("tool_calls")]
+            if msg.get("tool_call_id"): # Aggiungi se presente (per ruolo 'tool')
+                item["tool_call_id"] = msg.get("tool_call_id")
+                item["name"] = msg.get("name")
+            serializable_history.append(item)
+        logging.debug(f"Cronologia conversazione inviata (forma serializzabile): {json.dumps(serializable_history, indent=2, ensure_ascii=False)}")
+    except Exception as e_json:
+        logging.error(f"Errore nella serializzazione JSON della cronologia per debug: {e_json}")
+
 
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=conversation_history,
-            tools=openai_tools,  # Usa 'tools' invece di 'functions'
-            tool_choice="auto", # Usa 'tool_choice' invece di 'function_call'
+            messages=conversation_history, # Invia la cronologia originale
+            tools=openai_tools,
+            tool_choice="auto",
             temperature=0.5,
             max_tokens=4096
         )
 
-        message = response.choices[0].message
-        print(f"[DEBUG] Risposta raw da OpenAI: {message}") # <-- Corretto! Usa 'message'
+        message_from_ai = response.choices[0].message # Questo è un ChatCompletionMessage
+        logging.debug(f"[DEBUG] Risposta raw da OpenAI (oggetto): {message_from_ai}")
 
-        tool_calls = message.tool_calls # <-- Usa 'message.tool_calls'
+        # Prepara il messaggio da aggiungere alla cronologia
+        message_to_add_to_history = {"role": "assistant", "content": message_from_ai.content}
+
+        tool_calls = message_from_ai.tool_calls
 
         if tool_calls:
-            print(f"[DEBUG] OpenAI ha deciso di chiamare {len(tool_calls)} funzione/i.")
-            conversation_history.append(message) # Aggiungi la risposta con la richiesta del tool
+            logging.info(f"[DEBUG] OpenAI ha deciso di chiamare {len(tool_calls)} funzione/i.")
+            # Aggiungi i tool_calls al messaggio che verrà storicizzato
+            message_to_add_to_history["tool_calls"] = message_from_ai.tool_calls # L'API history accetta l'oggetto tool_calls
+            conversation_history.append(message_to_add_to_history) # Aggiungi la risposta dell'AI che richiede il tool
 
-            # Esegui tutte le chiamate richieste
+            ai_response_content_after_tool = "Ok, Glitch." 
+
             for tool_call in tool_calls:
                 function_name = tool_call.function.name
                 function_args_str = tool_call.function.arguments
-                print(f"[DEBUG] Chiamo: {function_name} con args: {function_args_str}")
-
+                logging.info(f"[DEBUG] Chiamo: {function_name} con args: {function_args_str}")
+                
+                tool_result_content = ""
+                # ... (logica per chiamare la funzione e ottenere tool_result_content) ...
                 try:
                     function_args = json.loads(function_args_str)
                     if function_name in function_map:
-                        result = function_map[function_name](**function_args)
-                        print(f"[DEV] Function result: {result}")
+                        tool_call_result = function_map[function_name](**function_args)
+                        # ... (gestione di tool_call_result come prima) ...
+                        if function_name == "slice_model" and isinstance(tool_call_result, dict):
+                            tool_result_content = tool_call_result.get("message", "Errore imprevisto nello slicing.")
+                            if tool_call_result.get("status") == "success" and tool_call_result.get("gcode_path"):
+                                shared_variables.last_gcode_path = tool_call_result.get("gcode_path")
+                        # ... (altri 'elif' per altre funzioni se necessario) ...
+                        else:
+                            tool_result_content = str(tool_call_result)
                     else:
-                        result = f"Function {function_name} not found"
+                        tool_result_content = f"Funzione {function_name} non trovata"
                 except Exception as func_err:
-                    print(f"[DEV] Error calling function {function_name}: {func_err}")
-                    result = f"Error executing {function_name}: {func_err}"
+                    # ... (gestione errore funzione) ...
+                    tool_result_content = f"Errore nell'eseguire {function_name}: {func_err}"
 
-                # Aggiungi il risultato della funzione alla cronologia
+
                 conversation_history.append({
                     "role": "tool",
                     "tool_call_id": tool_call.id,
                     "name": function_name,
-                    "content": str(result)
+                    "content": tool_result_content
                 })
 
-            # Richiama OpenAI per ottenere una risposta in linguaggio naturale basata sul risultato
-            print("[DEV] Getting final response after function call...")
-            final_response = client.chat.completions.create(
+            logging.info("[DEV] Ottengo risposta finale dopo la chiamata funzione...")
+            final_response_after_tool = client.chat.completions.create(
                 model="gpt-4o-mini",
-                messages=conversation_history,
+                messages=conversation_history, # Invia la cronologia aggiornata
                 temperature=0.5,
-                max_tokens=4096
+                max_tokens=1024
             )
-            ai_response = final_response.choices[0].message.content
-            conversation_history.append({"role": "assistant", "content": ai_response}) # Aggiungi risposta finale
-            return ai_response
+            ai_response_content_after_tool = final_response_after_tool.choices[0].message.content
+            
+            if not ai_response_content_after_tool:
+                ai_response_content_after_tool = "Ok, Glitch, fatto."
+            
+            # Aggiungi la risposta finale dell'assistente alla cronologia
+            conversation_history.append({"role": "assistant", "content": ai_response_content_after_tool})
+            return ai_response_content_after_tool
 
         else:
-            # Nessuna chiamata a funzione, è una risposta normale
-            print("[DEBUG] OpenAI non ha richiesto una function call.")
-            ai_response = message.content
-            if not ai_response: # Gestisce risposte vuote
-                 ai_response = "Certamente, Sir. C'è altro?"
-            conversation_history.append(message) # Aggiungi la risposta dell'AI
-            return ai_response
+            # Nessuna chiamata a funzione
+            logging.info("[DEBUG] OpenAI non ha richiesto una function call.")
+            ai_response_content = message_from_ai.content
+            if not ai_response_content: 
+                 ai_response_content = "Certamente, Sir. C'è altro?"
+            
+            # Aggiungi la risposta dell'AI alla cronologia (come dizionario)
+            conversation_history.append(message_to_add_to_history) # Usa message_to_add_to_history che è già un dizionario
+            return ai_response_content
 
     except Exception as e:
-        print(f"[DEV] Error occurred: {str(e)}")
+        logging.error(f"[DEV] Errore in ask_question_memory: {str(e)}")
         import traceback
-        traceback.print_exc() # Stampa più dettagli sull'errore
-        return f"Sir, si è verificato un errore critico: {e}"
-		
-# From here on and below it's all TTS settings
-def generate_tts(sentence, speech_file_path):
-    """
-    Generates Text-to-Speech audio and saves it to a file.
-    """
-    response = client.audio.speech.create(
-        model="tts-1-hd",      # Prova anche "tts-1-hd"
-        voice="onyx",       # <--- Esempio: voce cambiata in "onyx"
-        input=sentence,
-    )
-    response.stream_to_file(speech_file_path)
-    return str(speech_file_path)
+        traceback.print_exc()
+        return f"Sir, si è verificato un errore critico nella comunicazione con l'AI: {e}"
+
+
+# --- Funzioni TTS (come le avevi, ma assicurati che mixer.init() sia solo in ai-slicer.py) ---
+def generate_tts(sentence, speech_file_path="speech.mp3"):
+    try:
+        response = client.audio.speech.create(
+            model="tts-1", # Prova "tts-1-hd" per qualità migliore
+            voice="onyx",  # Scegli tra: alloy, echo, fable, onyx, nova, shimmer
+            input=sentence
+        )
+        response.stream_to_file(speech_file_path)
+        return str(speech_file_path)
+    except Exception as e:
+        logging.error(f"Errore nella generazione TTS: {e}")
+        return None
 
 def play_sound(file_path):
-    """
-    Plays the given audio file using the mixer module.
-    """
-    mixer.music.load(file_path)
-    mixer.music.play()
+    if not file_path: return
+    try:
+        mixer.music.load(file_path)
+        mixer.music.play()
+    except Exception as e:
+        logging.error(f"Errore nel riprodurre suono {file_path}: {e}")
 
 def TTS(text):
-    """
-    Plays the Text-to-Speech response unless Silent Mode is active.
-    """
     if tools.is_silent_mode():
-        print(f"Arturo: {text}")  # Print response instead of speaking
+        print(f"Arturo (testo): {text}") 
         return "Silent mode active. Response printed only."
-    speech_file_path = generate_tts(text, "speech.mp3")
-    play_sound(speech_file_path)
-    while mixer.music.get_busy():
-        time.sleep(0.1)
-    mixer.music.unload()
-    if os.path.exists(speech_file_path):
-        os.remove(speech_file_path)
+    
+    speech_file_path = generate_tts(text)
+    if speech_file_path:
+        play_sound(speech_file_path)
+        while mixer.music.get_busy():
+            time.sleep(0.1)
+        mixer.music.unload() # Scarica il file dopo la riproduzione
+        try:
+            if os.path.exists(speech_file_path):
+                os.remove(speech_file_path)
+        except Exception as e:
+            logging.warning(f"Impossibile rimuovere il file audio temporaneo {speech_file_path}: {e}")
     return "done"
 
+# TTS_with_interrupt non è stata modificata molto, ma la sua efficacia
+# dipende da come il registratore viene gestito in ai-slicer.py
 def TTS_with_interrupt(text, hot_words):
-    """
-    Plays the response with interrupt handling during playback.
-    """
-    speech_file_path = generate_tts(text, "speech.mp3")
+    if tools.is_silent_mode():
+        print(f"Arturo (testo): {text}")
+        return "Silent mode active. Response printed only."
+
+    speech_file_path = generate_tts(text)
+    if not speech_file_path:
+        return "Error in TTS generation."
+        
     play_sound(speech_file_path)
 
     try:
         while mixer.music.get_busy():
-            # Non-blocking check for interrupt signal
+            time.sleep(0.05) # Check più frequente
             with shared_variables.latest_text_lock:
                 current_text = shared_variables.latest_text
-                # Clear latest_text to avoid processing the same text multiple times
-                shared_variables.latest_text = ""
-
+                if current_text: # Se c'è testo, azzeralo subito
+                    shared_variables.latest_text = ""
+            
             if current_text and any(hot_word in current_text.lower() for hot_word in hot_words):
-                print("Slicy interrupted.")
+                logging.info("Arturo interrotto durante TTS.")
                 mixer.music.stop()
-                break  # Exit the loop to proceed to cleanup
-            time.sleep(0.1) 
+                mixer.music.unload() # Scarica il file
+                # Potrebbe essere utile ritornare un flag o il testo che ha causato l'interruzione
+                return f"Interrotto da: {current_text}"
     finally:
-        # Ensure resources are cleaned up whether interrupted or not
+        if mixer.music.get_busy(): # Assicura che la musica sia fermata
+            mixer.music.stop()
         mixer.music.unload()
-        if os.path.exists(speech_file_path):
-            os.remove(speech_file_path)
+        try:
+            if os.path.exists(speech_file_path):
+                os.remove(speech_file_path)
+        except Exception as e:
+            logging.warning(f"Impossibile rimuovere il file audio temporaneo {speech_file_path}: {e}")
     return "done"
 
-if __name__ == "__main__":
-    while True:
-        user_input = input("You: ")
-        if user_input.lower() == 'exit':
-            break
-        response = ask_question_memory(user_input)
-        print("Assistant:", response)
-        TTS(response)
+if __name__ == "__main__": # Per testare assist.py separatamente
+    mixer.init() # Necessario per testare TTS
+    # tools._silent_mode = False # Per testare TTS
+    
+    # Test TTS
+    # print("Testo TTS: 'Ciao, questo è un test.'")
+    # TTS("Ciao, questo è un test.")
+
+    # Test ask_question_memory (richiede functions.json e tools.py configurati)
+    # print("\nTest di ask_question_memory:")
+    # response = ask_question_memory("elenca i file")
+    # print("Risposta AI:", response)
+    # if not tools.is_silent_mode(): TTS(response)
+
+    # response = ask_question_memory("processa il file numero 1")
+    # print("Risposta AI:", response)
+    # if not tools.is_silent_mode(): TTS(response)
+    pass # Lascia vuoto o aggiungi test specifici per assist.py
