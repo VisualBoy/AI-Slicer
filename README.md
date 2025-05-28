@@ -24,6 +24,7 @@ L'assistente, chiamato "Arturo", utilizza:
 * **Configurazione Tramite `.env`:** Gestione sicura di API key e percorsi (PrusaSlicer, cartella STL).
 * **Gestione dell'Eco Vocale:** Implementate logiche per ridurre l'auto-ascolto dell'assistente.
 * **Saluto Vocale all'Avvio:** Arturo saluta l'utente all'avvio dell'applicazione.
+* **Gestione Preferenze (Iniziale):** Capacità di caricare, salvare e impostare preferenze di base (come l'altezza predefinita del layer) tramite l'AI, utilizzando il file `preferences.json`.
 
 ## Setup e Installazione (Generale)
 
@@ -88,12 +89,6 @@ Attendi il saluto "Ciao, sono Arturo. In cosa posso aiutarla?" e poi interagisci
 * **TTS per Saluto Iniziale:** Arturo ora saluta vocalmente all'avvio.
 * **Refactoring e Debug:** Numerosi cicli di debug per risolvere problemi di logica, API, formattazione JSON, caricamento `.env`, ecc.
 
-## Idee Future (Roadmap)
+## Roadmap
 
-* **Gestione Avanzata Preferenze Utente:** Salvare e caricare profili di stampa completi, materiali, ecc. nel file `preferences.json`.
-* **Modifica Parametri di Slicing via Voce:** Permettere comandi come "Arturo, processa con altezza layer 0.15 e riempimento 20%".
-* **Input Testuale Alternativo:** Se il riconoscimento vocale fallisce o per preferenza utente.
-* **GUI Semplice (Opzionale):** Un'interfaccia grafica minimale con `tkinter` o `PyQt`.
-* **Integrazione Tool di Riparazione STL Esterni:** Se il `--center` di PrusaSlicer non basta.
-* **Feedback Migliorato:** Stime di tempo, anteprime (difficile via CLI).
-* **`time.sleep` Dinamico:** Pausa dopo il TTS basata sulla lunghezza effettiva della risposta.
+Per le idee di sviluppo futuro e la roadmap dettagliata del progetto, si veda il file [ROADMAP.md](ROADMAP.md).
