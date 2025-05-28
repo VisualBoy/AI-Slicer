@@ -121,7 +121,6 @@ def generate_tts(sentence, speech_file_path):
         model="tts-1-hd",      # Prova anche "tts-1-hd"
         voice="onyx",       # <--- Esempio: voce cambiata in "onyx"
         input=sentence,
-        language="it"     # Opzionale, se vuoi forzare l'italiano per il TTS
     )
     response.stream_to_file(speech_file_path)
     return str(speech_file_path)
