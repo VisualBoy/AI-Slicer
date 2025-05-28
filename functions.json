@@ -1,0 +1,77 @@
+{
+  "functions": [
+    {
+      "name": "set_preference",
+      "description": "Sets a specific user preference, like default layer height or infill.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "The name of the preference to set (e.g., 'default_layer_height')."
+          },
+          "value": {
+            "type": "string", 
+            "description": "The value to set for the preference (will be converted if needed)."
+          }
+        },
+        "required": ["key", "value"]
+      }
+    },
+    {
+      "name": "web_search",
+      "description": "Search the web for real-time information",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The search query to look up"
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "toggle_silent_mode",
+      "description": "Toggle silent mode on or off",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "boolean",
+            "description": "True to enable silent mode, False to disable it"
+          }
+        },
+        "required": ["state"]
+      }
+    },
+    {
+      "name": "slice_model",
+      "description": "Slice a 3D model file (STL, 3MF, etc.) using PrusaSlicer to generate G-code.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "The name of the 3D model file (e.g., 'benchy.stl'), its number from the list, OR the full path to the file."
+          },
+          "output_path": {
+            "type": "string",
+            "description": "Optional. The full path where the G-code file should be saved. If not provided, a default name will be used."
+          }
+        },
+        "required": ["file_path"]
+      }
+    },
+    {
+      "name": "list_stl_files",
+      "description": "Lists all .stl, .3mf, and .obj files found in the default 3D objects folder.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    }
+  ]
+}
