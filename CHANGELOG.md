@@ -2,7 +2,7 @@
 
 Tutte le modifiche rilevanti a questo progetto saranno documentate in questo file.
 
-## [Non Rilasciato] - YYYY-MM-DD (es. 2025-05-28)
+## [Non Rilasciato] - 2025-05-28
 
 ### Aggiunto
 * **Assistente Vocale "Arturo":**
@@ -38,4 +38,3 @@ Tutte le modifiche rilevanti a questo progetto saranno documentate in questo fil
 * **Logica di Debug:** Aggiunti numerosi `print` di debug per tracciare il flusso e identificare problemi.
 * **Robustezza Codice:** Corretti vari bug (es. `NameError` in `assist.py`, formattazione `functions.json`, gestione caricamento `.env`).
 * **Voce TTS:** Discussa e implementata la possibilità di cambiare la voce TTS di OpenAI.
-
