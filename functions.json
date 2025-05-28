@@ -1,21 +1,17 @@
 {
   "functions": [
     {
-      "name": "set_preference",
-      "description": "Sets a specific user preference, like default layer height or infill.",
+      "name": "control_lights",
+      "description": "Control the lights in the room",
       "parameters": {
         "type": "object",
         "properties": {
-          "key": {
-            "type": "string",
-            "description": "The name of the preference to set (e.g., 'default_layer_height')."
-          },
-          "value": {
-            "type": "string", 
-            "description": "The value to set for the preference (will be converted if needed)."
+          "state": {
+            "type": "boolean",
+            "description": "True to turn lights on, False to turn them off"
           }
         },
-        "required": ["key", "value"]
+        "required": ["state"]
       }
     },
     {
@@ -71,6 +67,38 @@
         "type": "object",
         "properties": {},
         "required": []
+      }
+    },
+    {
+      "name": "set_preference",
+      "description": "Sets a specific user preference, like default layer height or infill.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "The name of the preference to set (e.g., 'default_layer_height')."
+          },
+          "value": {
+            "type": "string",
+            "description": "The value to set for the preference (will be converted if needed)."
+          }
+        },
+        "required": ["key", "value"]
+      }
+    },
+    {
+      "name": "view_gcode",
+      "description": "Opens a specified .gcode file using the Prusa G-code Viewer.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "gcode_file_path": {
+            "type": "string",
+            "description": "The name of the .gcode file (e.g., 'benchy.gcode') located in the default folder, or the full path to the file."
+          }
+        },
+        "required": ["gcode_file_path"]
       }
     }
   ]
