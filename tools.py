@@ -4,14 +4,35 @@ import subprocess
 import logging 
 import json # Importa json per load_preferences
 
+# Import functions from ai-slicer
+import ai_slicer # Import the module itself to access its functions
+
 # Configura il logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Rimosse le righe per silenziare RealtimeSTT/faster_whisper se non servono più
-# logging.getLogger("RealtimeSTT").setLevel(logging.WARNING) 
-# logging.getLogger("faster_whisper").setLevel(logging.WARNING)
-
 PREFERENCES_FILE = "preferences.json"
+FUNCTIONS_FILE = "functions.json" # Define the functions.json file path
+
+# --- Load FUNCTIONS_SPEC ---
+def load_functions_spec():
+    """Loads the function specifications from functions.json."""
+    if not os.path.exists(FUNCTIONS_FILE):
+        logging.error(f"{FUNCTIONS_FILE} not found. AI will not have function definitions.")
+        return [] # Return empty list if file not found
+    try:
+        with open(FUNCTIONS_FILE, 'r') as f:
+            spec = json.load(f)
+            # The spec is expected to be a dictionary with a "functions" key 
+            # which holds a list of function definitions.
+            # If the JSON root is already the list, then just return spec.
+            # Based on previous content of functions.json, it's a dict with "functions" key.
+            return spec.get("functions", []) 
+    except Exception as e:
+        logging.error(f"Errore nel caricare le specifiche delle funzioni ({FUNCTIONS_FILE}): {e}")
+        return []
+
+FUNCTIONS_SPEC = load_functions_spec()
+# --- End Load FUNCTIONS_SPEC ---
 
 # --- Funzioni per le Preferenze (come definite prima) ---
 def load_preferences():
@@ -265,3 +286,45 @@ def view_gcode(gcode_file_path):
         logging.error(f"Errore inaspettato durante l'apertura del G-code viewer: {e}")
         return f"Si è verificato un errore inaspettato: {e}"
 # --- FINE NUOVA FUNZIONE ---
+
+# --- AVAILABLE_TOOLS Dictionary ---
+AVAILABLE_TOOLS = {
+    "web_search": web_search,
+    "control_lights": control_lights,
+    "toggle_silent_mode": toggle_silent_mode,
+    "list_stl_files": list_stl_files,
+    "slice_model": slice_model,
+    "set_preference": set_preference,
+    "view_gcode": view_gcode,
+    # Functions from ai_slicer
+    "analyze_printability": ai_slicer.analyze_printability,
+    "select_print_profile": ai_slicer.select_print_profile,
+    "optimize_orientation": ai_slicer.optimize_orientation,
+    "generate_intelligent_supports": ai_slicer.generate_intelligent_supports,
+    "adaptive_layer_settings": ai_slicer.adaptive_layer_settings,
+    "optimize_infill": ai_slicer.optimize_infill,
+}
+# --- End AVAILABLE_TOOLS Dictionary ---
+
+if __name__ == '__main__':
+    # Example of how to use a tool
+    # print(AVAILABLE_TOOLS["web_search"]("latest AI news"))
+    # print(FUNCTIONS_SPEC) # Print loaded function specs
+    
+    # Test per set_preference
+    # print(set_preference("default_slicer_profile", "0.2mm Quality"))
+    # print(set_preference("default_layer_height", "0.25"))
+    # print(set_preference("last_used_printer", "PrusaMK4_Work"))
+    # print(load_preferences())
+    
+    # Test per slice_model (assicurati che STL_DEFAULT_FOLDER e PRUSA_SLICER_PATH siano nel tuo .env)
+    # test_file = "test_cube.stl" # Metti un file di test nella tua cartella STL di default
+    # print(slice_model(test_file))
+    
+    # Test per list_stl_files
+    # print(list_stl_files())
+
+    # Test per view_gcode (assicurati che PRUSA_GCODEVIEWER_PATH sia nel tuo .env)
+    # test_gcode_file = "test_cube.gcode" # Assicurati che esista (generato da slice_model)
+    # print(view_gcode(test_gcode_file))
+    pass

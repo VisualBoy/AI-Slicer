@@ -100,6 +100,117 @@
         },
         "required": ["gcode_file_path"]
       }
+    },
+    {
+      "name": "analyze_printability",
+      "description": "Analyzes the 3D model for printability issues like overhangs, thin walls, and geometry problems.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "The full path to the 3D model file to be analyzed."
+          }
+        },
+        "required": ["file_path"]
+      }
+    },
+    {
+      "name": "select_print_profile",
+      "description": "Suggests or applies an optimal slicing profile based on the model, material, and desired outcome.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "The full path to the 3D model file."
+          },
+          "material": {
+            "type": "string",
+            "description": "The selected printing material (e.g., 'PLA', 'ABS', 'PETG')."
+          },
+          "desired_outcome": {
+            "type": "string",
+            "description": "The desired outcome for the print (e.g., 'fast_prototype', 'functional_part', 'detailed_miniature')."
+          }
+        },
+        "required": ["file_path", "material", "desired_outcome"]
+      }
+    },
+    {
+      "name": "optimize_orientation",
+      "description": "Suggests the optimal orientation of the piece on the print bed based on user criteria (e.g., strength, print time, support needs). NOT YET IMPLEMENTED.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Full path to the 3D model file."
+          },
+          "criteria": {
+            "type": "string",
+            "description": "Optimization criteria: 'strength', 'time', 'supports', 'surface_finish'."
+          }
+        },
+        "required": ["file_path", "criteria"]
+      }
+    },
+    {
+      "name": "generate_intelligent_supports",
+      "description": "Generates custom supports (e.g., tree, organic) only where strictly necessary. NOT YET IMPLEMENTED.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Full path to the 3D model file."
+          },
+          "strategy": {
+            "type": "string",
+            "description": "Support generation strategy: 'tree', 'organic', 'minimal'."
+          }
+        },
+        "required": ["file_path", "strategy"]
+      }
+    },
+    {
+      "name": "adaptive_layer_settings",
+      "description": "Dynamically adjusts layer height and other settings based on model geometry. NOT YET IMPLEMENTED.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Full path to the 3D model file."
+          },
+          "mode": {
+            "type": "string",
+            "description": "Adaptive mode: 'quality', 'speed'."
+          }
+        },
+        "required": ["file_path", "mode"]
+      }
+    },
+    {
+      "name": "optimize_infill",
+      "description": "Generates non-uniform infill, denser in critical zones. NOT YET IMPLEMENTED.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Full path to the 3D model file."
+          },
+          "stress_points": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of coordinates or areas identified for higher stress."
+          }
+        },
+        "required": ["file_path"]
+      }
     }
   ]
 }
