@@ -3,3 +3,4 @@ pygame
 realtimestt
 googlesearch-python
 python-dotenv
+rich

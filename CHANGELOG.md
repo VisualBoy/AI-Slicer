@@ -31,6 +31,12 @@ Tutte le modifiche rilevanti a questo progetto saranno documentate in questo fil
     * Creazione di `preferences.json` (struttura base).
     * Funzioni `load_preferences`, `save_preferences`, `set_preference` in `tools.py`.
     * Function call `set_preference` per permettere all'AI di modificare le preferenze (es. `default_layer_height`).
+* **Integrazione Libreria Rich per Interfaccia CLI Migliorata:**
+    * Utilizzo di `rich.Console` per output testuali stilizzati (colori per utente/assistente).
+    * Implementazione di `rich.Table` per la visualizzazione tabellare dei file 3D (`list_stl_files`).
+    * Aggiunta di `rich.Spinner` per indicare gli stati di attesa durante l'elaborazione da parte dell'AI.
+    * Configurazione di `rich.logging.RichHandler` per log e traceback più leggibili e formattati.
+    * Rimossi i precedenti messaggi di `print("[DEBUG]...")` per una console più pulita, affidandosi alla nuova configurazione di logging.
 
 ### Modificato
 * **System Prompt OpenAI:** Aggiornato per riflettere il nome "Arturo" e le istruzioni in italiano.
