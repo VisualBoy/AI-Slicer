@@ -1,4 +1,4 @@
-# AI-Slicer (con Assistente Vocale "Arturo")
+# AI-Slicer (assistente vocale per la stampa 3D)
 
 ## Panoramica del Progetto
 
@@ -60,7 +60,7 @@ Attendi il saluto "Ciao, sono Arturo. In cosa posso aiutarla?" e poi interagisci
 
 **Comandi Esempio:**
 * "Arturo, elenca i file."
-* "Arturo, processa il file BRISO.stl."
+* "Arturo, processa il file CUBO.stl."
 * "Arturo, processa il file numero uno."
 
 ## Struttura del Progetto (File Principali)

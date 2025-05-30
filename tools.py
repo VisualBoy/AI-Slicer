@@ -3,9 +3,18 @@ import os
 import subprocess
 import logging 
 import json # Importa json per load_preferences
+from rich.table import Table # Added import
+from rich.text import Text # Added import
+from rich import print as rprint # Added import for rich printing
+from rich.logging import RichHandler # ADDED IMPORT FOR RICH LOGGING
 
-# Configura il logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Configura il logging con RichHandler
+logging.basicConfig(
+    level=logging.WARNING, # CHANGED to WARNING
+    format="%(message)s", # RichHandler handles its own formatting
+    datefmt="[%X]",
+    handlers=[RichHandler(level=logging.WARNING, rich_tracebacks=True, show_path=False, log_time_format="[%X]")] # MODIFIED Handler
+)
 
 # Rimosse le righe per silenziare RealtimeSTT/faster_whisper se non servono più
 # logging.getLogger("RealtimeSTT").setLevel(logging.WARNING) 
@@ -17,12 +26,12 @@ PREFERENCES_FILE = "preferences.json"
 def load_preferences():
     """Loads user preferences from preferences.json."""
     if not os.path.exists(PREFERENCES_FILE):
-        logging.info(f"{PREFERENCES_FILE} non trovato, ritorno dizionario vuoto.")
+        logging.info(f"{PREFERENCES_FILE} non trovato, ritorno dizionario vuoto.") # This will be INFO level
         return {} 
     try:
         with open(PREFERENCES_FILE, 'r') as f:
             prefs = json.load(f)
-            logging.info(f"Preferenze caricate: {prefs}")
+            logging.info(f"Preferenze caricate: {prefs}") # This will be INFO level
             return prefs
     except Exception as e:
         logging.error(f"Errore nel caricare le preferenze: {e}")
@@ -33,7 +42,7 @@ def save_preferences(prefs):
     try:
         with open(PREFERENCES_FILE, 'w') as f:
             json.dump(prefs, f, indent=4)
-        logging.info(f"Preferenze salvate: {prefs}")
+        logging.info(f"Preferenze salvate: {prefs}") # This will be INFO level
         return True
     except Exception as e:
         logging.error(f"Errore nel salvare le preferenze: {e}")
@@ -66,7 +75,10 @@ def perform_web_search(query, num_results=3): # Esempio web_search
         results = list(search(query, num_results=num_results, advanced=True))
         return [{'title': r.title, 'description': r.description, 'url': r.url} for r in results]
     except Exception as e:
-        print(f"Error performing web search: {e}")
+        # Consider using rprint or logging for errors too
+        # This was rprint before, if it should be logging.error, it needs to be changed.
+        # For now, keeping as rprint as per previous content.
+        rprint(f"Error performing web search: {e}") 
         return []
 
 def web_search(query):
@@ -104,10 +116,9 @@ def get_files_from_default_folder():
     found_files = []
     try:
         for f_name in os.listdir(default_folder):
-            if os.path.isfile(os.path.join(default_folder, f_name)) and \
-               any(f_name.lower().endswith(ext) for ext in supported_extensions):
+            if os.path.isfile(os.path.join(default_folder, f_name)) and                any(f_name.lower().endswith(ext) for ext in supported_extensions):
                 found_files.append(f_name)
-        logging.info(f"File trovati nella cartella di default: {found_files}")
+        logging.info(f"File trovati nella cartella di default: {found_files}") # This will be INFO level
         return sorted(found_files) # Ritorna i file ordinati
     except Exception as e:
         logging.error(f"Errore nel leggere la cartella di default: {e}")
@@ -115,19 +126,24 @@ def get_files_from_default_folder():
 
 def list_stl_files():
     """
-    Lists 3D printable files (STL, 3MF, OBJ) in the default folder.
+    Lists 3D printable files (STL, 3MF, OBJ) in the default folder using a rich Table.
     """
     found_files = get_files_from_default_folder()
 
     if not found_files:
         return "Sir, non ho trovato file stampabili nella cartella predefinita."
 
-    file_list_str = "Sir, ecco i file che ho trovato:\n"
+    table = Table(title="Modelli 3D Disponibili", style="cyan", title_style="bold magenta", show_lines=True)
+
+    table.add_column("#", style="dim cyan", justify="right", width=3)
+    table.add_column("Nome File", style="green", overflow="fold")
+
     for i, f_name in enumerate(found_files, 1):
-        file_list_str += f"{i}. {f_name}\n"
+        table.add_row(str(i), Text(f_name, style="green"))
     
-    file_list_str += "Quale file desideri processare? Puoi dire il nome o il numero."
-    return file_list_str
+    rprint(table) 
+    
+    return "Ok, Glitch. Ho mostrato i file disponibili in una tabella."
 
 def slice_model(file_path, output_path=None):
     """
@@ -150,7 +166,7 @@ def slice_model(file_path, output_path=None):
         available_files = get_files_from_default_folder()
         if 0 <= file_index < len(available_files):
             actual_file_path = os.path.join(default_folder, available_files[file_index])
-            logging.info(f"Utente ha selezionato il numero {file_path}, mappato a: {actual_file_path}")
+            logging.info(f"Utente ha selezionato il numero {file_path}, mappato a: {actual_file_path}") # This will be INFO level
         else:
             return {"status": "error", "message": f"Sir, il numero {file_path} non è valido per la lista corrente."}
     except ValueError: # Non era un numero, quindi è un nome file o un percorso
@@ -159,7 +175,7 @@ def slice_model(file_path, output_path=None):
                 logging.error("Percorso file non assoluto e STL_DEFAULT_FOLDER non impostato.")
                 return {"status": "error", "message": "Errore: Hai fornito solo un nome file, ma la cartella predefinita non è configurata."}
             actual_file_path = os.path.join(default_folder, file_path)
-            logging.info(f"Il percorso è relativo, uso la cartella di default: {actual_file_path}")
+            logging.info(f"Il percorso è relativo, uso la cartella di default: {actual_file_path}") # This will be INFO level
         else:
             actual_file_path = file_path
 
@@ -178,13 +194,13 @@ def slice_model(file_path, output_path=None):
     common_args = ["-g", actual_file_path, "-o", gcode_file]
     command_try1 = [prusa_executable] + common_args
     
-    logging.info(f"Primo tentativo di slicing: {' '.join(command_try1)}")
+    logging.info(f"Primo tentativo di slicing: {' '.join(command_try1)}") # This will be INFO level
     
     try:
         result1 = subprocess.run(command_try1, capture_output=True, text=True, check=False, encoding='utf-8', errors='replace')
 
         if result1.returncode == 0:
-            logging.info(f"Slicing riuscito al primo tentativo. Output: {gcode_file}")
+            logging.info(f"Slicing riuscito al primo tentativo. Output: {gcode_file}") # This will be INFO level
             return {
                 "status": "success",
                 "message": f"Fatto, Sir! Ho processato {os.path.basename(actual_file_path)} e salvato il G-code.",
@@ -192,16 +208,15 @@ def slice_model(file_path, output_path=None):
             }
         elif "no extrusions in the first layer" in result1.stderr:
             logging.warning(f"Errore Z=0 rilevato (stderr: {result1.stderr[:200]}). Tento la correzione con --center.")
-            # Definisci X,Y per il centro del piatto (configurabile se necessario)
             bed_center_x = "125" 
             bed_center_y = "105"
             command_try2 = [prusa_executable] + common_args + ["--center", f"{bed_center_x},{bed_center_y}"]
-            logging.info(f"Secondo tentativo di slicing: {' '.join(command_try2)}")
+            logging.info(f"Secondo tentativo di slicing: {' '.join(command_try2)}") # This will be INFO level
             
             result2 = subprocess.run(command_try2, capture_output=True, text=True, check=False, encoding='utf-8', errors='replace')
 
             if result2.returncode == 0:
-                logging.info(f"Slicing riuscito al secondo tentativo (con --center). Output: {gcode_file}")
+                logging.info(f"Slicing riuscito al secondo tentativo (con --center). Output: {gcode_file}") # This will be INFO level
                 return {
                     "status": "success",
                     "message": f"Fatto, Sir! Ho dovuto riposizionare l'oggetto, ma ho processato {os.path.basename(actual_file_path)} e salvato il G-code.",
@@ -217,10 +232,9 @@ def slice_model(file_path, output_path=None):
     except Exception as e:
         logging.error(f"Errore inaspettato durante lo slicing: {e}")
         import traceback
-        traceback.print_exc()
+        traceback.print_exc() # This will now be a rich traceback if logging is configured by ai_slicer_rich.py
         return {"status": "error", "message": f"Si è verificato un errore Python inaspettato durante lo slicing: {e}"}
 
-# --- NUOVA FUNZIONE: view_gcode ---
 def view_gcode(gcode_file_path):
     """
     Opens the specified .gcode file using prusa-gcodeviewer.exe.
@@ -235,16 +249,14 @@ def view_gcode(gcode_file_path):
         logging.error(f"Prusa G-code Viewer executable not found at: {gcode_viewer_executable}")
         return f"Sir, non trovo prusa-gcodeviewer.exe qui: {gcode_viewer_executable}. Verifica il percorso."
 
-    # Controlla se gcode_file_path è un percorso assoluto o solo un nome file
-    # Se è un nome file, si assume che sia nella cartella di default STL (o dove è stato salvato l'ultimo G-code)
     actual_gcode_path = ""
     if not os.path.isabs(gcode_file_path):
-        default_folder = os.getenv("STL_DEFAULT_FOLDER") # o una cartella G-code predefinita
+        default_folder = os.getenv("STL_DEFAULT_FOLDER") 
         if not default_folder:
             logging.error("G-code path is not absolute and STL_DEFAULT_FOLDER (for G-code) is not set.")
             return "Sir, hai fornito solo un nome file per il G-code, ma non so dove cercarlo."
         actual_gcode_path = os.path.join(default_folder, gcode_file_path)
-        logging.info(f"G-code path is relative, looking in default folder: {actual_gcode_path}")
+        logging.info(f"G-code path is relative, looking in default folder: {actual_gcode_path}") # This will be INFO level
     else:
         actual_gcode_path = gcode_file_path
         
@@ -253,10 +265,10 @@ def view_gcode(gcode_file_path):
         return f"Sir, il file G-code da visualizzare non esiste: {os.path.basename(actual_gcode_path)}."
 
     command = [gcode_viewer_executable, actual_gcode_path]
-    logging.info(f"Eseguo il comando del G-code Viewer: {' '.join(command)}")
+    logging.info(f"Eseguo il comando del G-code Viewer: {' '.join(command)}") # This will be INFO level
 
     try:
-        subprocess.Popen(command) # Avvia e non attendere
+        subprocess.Popen(command) 
         return f"Ok, Glitch, sto aprendo {os.path.basename(actual_gcode_path)} con il visualizzatore G-code."
     except FileNotFoundError:
         logging.error(f"Comando non trovato: {gcode_viewer_executable}.")
@@ -264,4 +276,3 @@ def view_gcode(gcode_file_path):
     except Exception as e:
         logging.error(f"Errore inaspettato durante l'apertura del G-code viewer: {e}")
         return f"Si è verificato un errore inaspettato: {e}"
-# --- FINE NUOVA FUNZIONE ---

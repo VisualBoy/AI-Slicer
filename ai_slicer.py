@@ -1,6 +1,6 @@
 from RealtimeSTT import AudioToTextRecorder
 import assist # Il tuo modulo per le chiamate OpenAI e TTS
-import tools_rich as tools  # MODIFIED IMPORT
+import tools as tools  # MODIFIED IMPORT
 import time
 import threading
 from pygame import mixer
