@@ -1,6 +1,6 @@
 from RealtimeSTT import AudioToTextRecorder
 import assist # Il tuo modulo per le chiamate OpenAI e TTS
-import tools as tools  # MODIFIED IMPORT
+import tools
 import time
 import threading
 from pygame import mixer
@@ -68,7 +68,7 @@ if __name__ == '__main__':
     expecting_user_response = False 
     last_tts_end_time = 0.0 
 
-    initial_greeting = "Ciao, sono Arturo. In cosa posso aiutarla?"
+    initial_greeting = "Ciao, sono Arturo. In cosa posso aiutarti?"
     console.print(initial_greeting) 
     if not tools.is_silent_mode(): 
         assist.TTS(initial_greeting)
@@ -105,7 +105,7 @@ if __name__ == '__main__':
                 
                 if "silent mode disabled" in response.lower() and not recorder.is_recording:
                     # print("[DEBUG] Modalità silenziosa disabilitata. Riattivo l'ascolto vocale al prossimo ciclo.")
-                continue 
+                    continue 
 
             else: # Modalità Vocale
                 if not recorder.is_recording:
@@ -114,7 +114,7 @@ if __name__ == '__main__':
                     console.print("Ti ascolto...") 
 
 
-            time.sleep(0.1) 
+            time.sleep(0.5) 
             current_text = ""
             with shared_variables.latest_text_lock:
                 current_text = shared_variables.latest_text

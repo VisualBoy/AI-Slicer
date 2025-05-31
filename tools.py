@@ -1,12 +1,12 @@
-from googlesearch import search # Se usi ancora web_search, altrimenti puoi rimuoverlo
 import os
 import subprocess
-import logging 
-import json # Importa json per load_preferences
-from rich.table import Table # Added import
-from rich.text import Text # Added import
-from rich import print as rprint # Added import for rich printing
-from rich.logging import RichHandler # ADDED IMPORT FOR RICH LOGGING
+import logging
+import json
+import requests
+from rich.table import Table
+from rich.text import Text
+from rich import print as rprint
+from rich.logging import RichHandler
 
 # Configura il logging con RichHandler
 logging.basicConfig(
@@ -19,7 +19,6 @@ logging.basicConfig(
 # Rimosse le righe per silenziare RealtimeSTT/faster_whisper se non servono più
 # logging.getLogger("RealtimeSTT").setLevel(logging.WARNING) 
 # logging.getLogger("faster_whisper").setLevel(logging.WARNING)
-
 PREFERENCES_FILE = "preferences.json"
 
 # --- Funzioni per le Preferenze (come definite prima) ---
@@ -70,23 +69,6 @@ def set_preference(key, value):
 
 # --- Funzioni Esistenti (web_search, control_lights, toggle_silent_mode) ---
 # Assicurati che queste siano presenti se le usi ancora
-def perform_web_search(query, num_results=3): # Esempio web_search
-    try:
-        results = list(search(query, num_results=num_results, advanced=True))
-        return [{'title': r.title, 'description': r.description, 'url': r.url} for r in results]
-    except Exception as e:
-        # Consider using rprint or logging for errors too
-        # This was rprint before, if it should be logging.error, it needs to be changed.
-        # For now, keeping as rprint as per previous content.
-        rprint(f"Error performing web search: {e}") 
-        return []
-
-def web_search(query):
-    results = perform_web_search(query)
-    if results:
-        return "\n".join([f"Title: {r['title']}\nDescription: {r['description']}" for r in results])
-    return f"No results found for '{query}'"
-
 def control_lights(state: bool): # Esempio control_lights
     return f"Lights turned {'on' if state else 'off'}"
 
@@ -104,6 +86,152 @@ def is_silent_mode(): # Funzione helper
     return _silent_mode
 # --- Fine Funzioni Esistenti ---
 
+# --- Fine Funzioni Esistenti ---
+
+# Helper function to get OctoPrint base URL and headers
+def _get_octoprint_config():
+    octoprint_url = os.getenv("OCTOPRINT_URL")
+    octoprint_api_key = os.getenv("OCTOPRINT_API_KEY")
+    if not octoprint_url or not octoprint_api_key:
+        logging.error("OctoPrint URL or API Key not found in .env file.")
+        return None, None
+    headers = {"X-Api-Key": octoprint_api_key}
+    return octoprint_url, headers
+
+# --- OctoPrint Integration Functions ---
+def octoprint_list_files(location: str = "local", recursive: bool = True):
+    """
+    Lists files present on OctoPrint.
+    """
+    octoprint_url, headers = _get_octoprint_config()
+    if not octoprint_url:
+        return {"status": "error", "message": "OctoPrint configuration missing."}
+
+    endpoint = f"{octoprint_url}/api/files"
+    if location and location != "all": # OctoPrint API uses /api/files for all, or /api/files/{location}
+        endpoint = f"{octoprint_url}/api/files/{location}"
+
+    params = {"recursive": "true" if recursive else "false"}
+
+    try:
+        response = requests.get(endpoint, headers=headers, params=params)
+        response.raise_for_status()
+        data = response.json()
+        
+        # OctoPrint returns a dictionary with 'files' key
+        if 'files' in data:
+            logging.info(f"OctoPrint files listed successfully from {location}.")
+            return {"status": "success", "files": data['files']}
+        else:
+            logging.warning(f"OctoPrint response for files did not contain 'files' key: {data}")
+            return {"status": "error", "message": "Unexpected OctoPrint response format for files."}
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Error listing OctoPrint files: {e}")
+        return {"status": "error", "message": f"Error connecting to OctoPrint or API issue: {e}"}
+    except json.JSONDecodeError:
+        logging.error(f"Failed to decode JSON from OctoPrint file list response: {response.text}")
+        return {"status": "error", "message": "Invalid JSON response from OctoPrint."}
+
+def octoprint_list_slicing_profiles(slicer_name: str):
+    """
+    Lists slicing profiles available for a given slicer in OctoPrint.
+    """
+    octoprint_url, headers = _get_octoprint_config()
+    if not octoprint_url:
+        return {"status": "error", "message": "OctoPrint configuration missing."}
+
+    endpoint = f"{octoprint_url}/api/slicing/profiles/{slicer_name}"
+
+    try:
+        response = requests.get(endpoint, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        
+        # OctoPrint returns a dictionary with 'profiles' key
+        if 'profiles' in data:
+            logging.info(f"OctoPrint slicing profiles for {slicer_name} listed successfully.")
+            return {"status": "success", "profiles": data['profiles']}
+        else:
+            logging.warning(f"OctoPrint response for slicing profiles did not contain 'profiles' key: {data}")
+            return {"status": "error", "message": "Unexpected OctoPrint response format for slicing profiles."}
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Error listing OctoPrint slicing profiles: {e}")
+        return {"status": "error", "message": f"Error connecting to OctoPrint or API issue: {e}"}
+    except json.JSONDecodeError:
+        logging.error(f"Failed to decode JSON from OctoPrint slicing profiles response: {response.text}")
+        return {"status": "error", "message": "Invalid JSON response from OctoPrint."}
+
+def octoprint_start_print(file_path_on_octoprint: str):
+    """
+    Starts printing an existing G-code file on OctoPrint.
+    """
+    octoprint_url, headers = _get_octoprint_config()
+    if not octoprint_url:
+        return {"status": "error", "message": "OctoPrint configuration missing."}
+
+    print_endpoint = f"{octoprint_url}/api/job"
+    print_payload = {
+        "command": "select",
+        "file": file_path_on_octoprint,
+        "print": True
+    }
+    logging.info(f"Attempting to print: {print_payload}")
+    try:
+        response = requests.post(print_endpoint, headers=headers, json=print_payload)
+        response.raise_for_status()
+        logging.info(f"Print command sent successfully for {file_path_on_octoprint}.")
+        return {"status": "success", "message": f"Print initiated for {file_path_on_octoprint}."}
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Error during OctoPrint print: {e}")
+        return {"status": "error", "message": f"Error connecting to OctoPrint or API issue during print: {e}"}
+    except json.JSONDecodeError:
+        logging.error(f"Failed to decode JSON from OctoPrint print response: {response.text}")
+        return {"status": "error", "message": "Invalid JSON response from OctoPrint during print."}
+
+def octoprint_slice_model(file_path_on_octoprint: str, slicer_name: str, slicing_profile_key: str, printer_profile_key: str = "_default", output_gcode_name: str = None, print_after_slice: bool = False):
+    """
+    Slices an STL/3MF model on OctoPrint using a specified slicer and profile.
+    """
+    octoprint_url, headers = _get_octoprint_config()
+    if not octoprint_url:
+        return {"status": "error", "message": "OctoPrint configuration missing."}
+
+    if not slicer_name or not slicing_profile_key:
+        return {"status": "error", "message": "Slicer name and slicing profile key are required for slicing."}
+    
+    # Assume file_path_on_octoprint is the path to the model file (e.g., STL)
+    # Extract filename and path for the slicing payload
+    path_parts = file_path_on_octoprint.split('/')
+    filename = path_parts[-1]
+    path = '/'.join(path_parts[:-1]) if len(path_parts) > 1 else ""
+
+    slicing_endpoint = f"{octoprint_url}/api/slicing/{slicer_name}/{slicing_profile_key}"
+    slicing_payload = {
+        "command": "slice",
+        "path": path,
+        "filename": filename,
+        "printerProfile": printer_profile_key,
+        "print": print_after_slice
+    }
+    if output_gcode_name:
+        slicing_payload["gcode"] = output_gcode_name
+    else:
+        slicing_payload["gcode"] = f"{os.path.splitext(filename)[0]}.gcode" # OctoPrint will generate one if not provided
+
+    logging.info(f"Attempting to slice model: {slicing_payload}")
+    try:
+        response = requests.post(slicing_endpoint, headers=headers, json=slicing_payload)
+        response.raise_for_status()
+        logging.info(f"Slicing command sent successfully for {file_path_on_octoprint}.")
+        return {"status": "success", "message": f"Slicing initiated for {file_path_on_octoprint} using {slicer_name} with profile {slicing_profile_key}. Print after slice: {print_after_slice}."}
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Error during OctoPrint slicing: {e}")
+        return {"status": "error", "message": f"Error connecting to OctoPrint or API issue during slicing: {e}"}
+    except json.JSONDecodeError:
+        logging.error(f"Failed to decode JSON from OctoPrint slicing response: {response.text}")
+        return {"status": "error", "message": "Invalid JSON response from OctoPrint during slicing."}
+
+# --- End OctoPrint Integration Functions ---
 
 def get_files_from_default_folder():
     """Helper function to get a list of files."""

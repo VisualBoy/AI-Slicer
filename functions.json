@@ -101,5 +101,84 @@
         "required": ["gcode_file_path"]
       }
     }
+    {
+      "name": "octoprint_list_files",
+      "description": "Lists files present on OctoPrint.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "type": "string",
+            "description": "Optional. The location to list files from ('local' or 'sdcard'). Defaults to 'local'."
+          },
+          "recursive": {
+            "type": "boolean",
+            "description": "Optional. Whether to list files recursively. Defaults to true."
+          }
+        }
+      }
+    },
+    {
+      "name": "octoprint_list_slicing_profiles",
+      "description": "Lists slicing profiles available for a given slicer in OctoPrint.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "slicer_name": {
+            "type": "string",
+            "description": "The name of the slicer (e.g., 'cura', 'slic3r')."
+          }
+        },
+        "required": ["slicer_name"]
+      }
+    },
+    {
+      "name": "octoprint_start_print",
+      "description": "Starts printing an existing G-code file on OctoPrint.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path_on_octoprint": {
+            "type": "string",
+            "description": "The path of the G-code file on OctoPrint (e.g., 'folder/file.gcode')."
+          }
+        },
+        "required": ["file_path_on_octoprint"]
+      }
+    },
+    {
+      "name": "octoprint_slice_model",
+      "description": "Slices an STL/3MF model on OctoPrint using a specified slicer and profile.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path_on_octoprint": {
+            "type": "string",
+            "description": "The path of the model file (e.g., 'model.stl') on OctoPrint."
+          },
+          "slicer_name": {
+            "type": "string",
+            "description": "The name of the slicer to use (e.g., 'cura')."
+          },
+          "slicing_profile_key": {
+            "type": "string",
+            "description": "The key of the slicing profile to use."
+          },
+          "printer_profile_key": {
+            "type": "string",
+            "description": "Optional. The key of the printer profile for slicing. Defaults to '_default'."
+          },
+          "output_gcode_name": {
+            "type": "string",
+            "description": "Optional. Desired name for the resulting G-code file. If not provided, OctoPrint will generate one."
+          },
+          "print_after_slice": {
+            "type": "boolean",
+            "description": "Optional. If true, OctoPrint will start printing the generated G-code after successful slicing. Defaults to false."
+          }
+        },
+        "required": ["file_path_on_octoprint", "slicer_name", "slicing_profile_key"]
+      }
+    }
   ]
 }

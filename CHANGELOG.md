@@ -37,6 +37,8 @@ Tutte le modifiche rilevanti a questo progetto saranno documentate in questo fil
     * Aggiunta di `rich.Spinner` per indicare gli stati di attesa durante l'elaborazione da parte dell'AI.
     * Configurazione di `rich.logging.RichHandler` per log e traceback più leggibili e formattati.
     * Rimossi i precedenti messaggi di `print("[DEBUG]...")` per una console più pulita, affidandosi alla nuova configurazione di logging.
+* **Integrazione OctoPrint API:**
+    * Aggiunte funzioni per listare i file su OctoPrint, elencare i profili di slicing disponibili, avviare la stampa di file G-code esistenti e avviare lo slicing di modelli 3D direttamente su OctoPrint.
 
 ### Modificato
 * **System Prompt OpenAI:** Aggiornato per riflettere il nome "Arturo" e le istruzioni in italiano.
