@@ -25,6 +25,11 @@ L'assistente, chiamato "Arturo", utilizza:
 * **Gestione dell'Eco Vocale:** Implementate logiche per ridurre l'auto-ascolto dell'assistente.
 * **Saluto Vocale all'Avvio:** Arturo saluta l'utente all'avvio dell'applicazione.
 * **Gestione Preferenze (Iniziale):** Capacità di caricare, salvare e impostare preferenze di base (come l'altezza predefinita del layer) tramite l'AI, utilizzando il file `preferences.json`.
+*   **Integrazione OctoPrint:**
+    *   Capacità di listare i file presenti su OctoPrint.
+    *   Possibilità di elencare i profili di slicing configurati su OctoPrint.
+    *   Funzionalità per avviare la stampa di file G-code esistenti direttamente su OctoPrint.
+    *   Supporto per avviare lo slicing di modelli 3D (STL/3MF) su OctoPrint, con opzioni per il profilo di slicing e l'avvio automatico della stampa.
 
 ## Setup e Installazione (Generale)
 
@@ -80,6 +85,7 @@ Attendi il saluto "Ciao, sono Arturo. In cosa posso aiutarla?" e poi interagisci
 * **Integrazione OpenAI:** Utilizzo di `gpt-4o-mini` per NLU e `tts-1` per TTS.
 * **Integrazione `faster_whisper` (via `RealtimeSTT`):** Per trascrizione STT locale, con supporto GPU.
 * **Function Calling OpenAI:** Implementazione per `list_stl_files` e `slice_model`.
+* **Integrazione API OctoPrint:** Aggiunto supporto per la gestione di file, profili di slicing e stampe su OctoPrint.
 * **Interazione PrusaSlicer CLI:** Costruzione dinamica dei comandi.
 * **Gestione Percorsi File:** Implementazione di una cartella STL predefinita e gestione di nomi file vs percorsi completi.
 * **Correzione Errori PrusaSlicer:** Tentativo automatico di correzione per "no extrusions in first layer" usando `--center`.
