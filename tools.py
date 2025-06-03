@@ -3,6 +3,7 @@ import subprocess
 import logging
 import json
 import requests
+import markdownify # Or from bs4 import BeautifulSoup
 from rich.table import Table
 from rich.text import Text
 from rich import print as rprint
@@ -404,3 +405,24 @@ def view_gcode(gcode_file_path):
     except Exception as e:
         logging.error(f"Errore inaspettato durante l'apertura del G-code viewer: {e}")
         return f"Si è verificato un errore inaspettato: {e}"
+
+def fetch_local_url_content(url: str) -> str:
+    """
+    Fetches content from a local URL and returns it as markdown or plain text.
+    Args:
+        url: The local URL to fetch (e.g., http://octoprint.local/api/job).
+    """
+    try:
+        response = requests.get(url, timeout=5) # Add timeout
+        response.raise_for_status() # Raise an exception for HTTP errors
+        # Convert HTML to Markdown for cleaner input to the LLM
+        content_md = markdownify.markdownify(response.text)
+        # Or use BeautifulSoup to extract specific text:
+        # soup = BeautifulSoup(response.text, 'html.parser')
+        # content_text = soup.get_text()
+        # Limit content length if necessary
+        return content_md[:5000] # Return first 5000 chars to avoid overly long inputs
+    except requests.exceptions.RequestException as e:
+        return f"Error fetching URL {url}: {str(e)}"
+    except Exception as e:
+        return f"An unexpected error occurred while fetching {url}: {str(e)}"
