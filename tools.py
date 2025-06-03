@@ -3,6 +3,7 @@ import subprocess
 import logging
 import json
 import requests
+import markdownify # Or from bs4 import BeautifulSoup
 from rich.table import Table
 from rich.text import Text
 from rich import print as rprint
@@ -47,8 +48,16 @@ def save_preferences(prefs):
         logging.error(f"Errore nel salvare le preferenze: {e}")
         return False
 
-def set_preference(key, value):
-    """Sets a specific preference and saves it."""
+def set_preference(key, value): # Type hint for value can be tricky for from_func if it's truly 'any'
+    """
+    Sets a specific user preference and saves it to a file.
+
+    Use this to remember user choices like default layer height, slicer options, etc.
+
+    Args:
+        key (str): The name of the preference to set (e.g., "default_layer_height").
+        value (any): The value for the preference (e.g., "0.2", 25, true). It will be stored and can be a string, number, or boolean.
+    """
     prefs = load_preferences()
     # Prova a convertire il valore se è un numero (per altezza layer, infill, ecc.)
     try:
@@ -69,11 +78,26 @@ def set_preference(key, value):
 
 # --- Funzioni Esistenti (web_search, control_lights, toggle_silent_mode) ---
 # Assicurati che queste siano presenti se le usi ancora
-def control_lights(state: bool): # Esempio control_lights
+def control_lights(state: bool):
+    """
+    Controls the state of the lights.
+
+    Args:
+        state (bool): True to turn the lights on, False to turn them off.
+    """
     return f"Lights turned {'on' if state else 'off'}"
 
 _silent_mode = False # Stato interno per la modalità silenziosa
-def toggle_silent_mode(state: bool): # Esempio toggle_silent_mode
+def toggle_silent_mode(state: bool):
+    """
+    Enables or disables silent mode.
+
+    When silent mode is enabled, the assistant will only respond with text.
+    When disabled, voice responses are resumed.
+
+    Args:
+        state (bool): True to enable silent mode, False to disable it.
+    """
     global _silent_mode
     _silent_mode = state
     if _silent_mode:
@@ -273,10 +297,21 @@ def list_stl_files():
     
     return "Ok, Glitch. Ho mostrato i file disponibili in una tabella."
 
-def slice_model(file_path, output_path=None):
+def slice_model(file_path: str, output_path: str = None):
     """
-    Slices a 3D model, attempting to fix 'no extrusions' error by centering.
+    Slices a 3D model using PrusaSlicer and saves the G-code.
+
+    This function can take a file name (if in the default STL folder),
+    an index number (from 'list_stl_files'), or an absolute path to an STL/3MF/OBJ model.
+    It attempts to automatically fix 'no extrusions in the first layer' errors by centering the model.
     Returns a dictionary with status, message, and gcode_path on success.
+
+    Args:
+        file_path (str): The identifier for the 3D model file to slice.
+                         Can be a name, an index from `list_stl_files`, or a full path.
+        output_path (str, optional): The desired path for the output G-code file.
+                                     If not provided, G-code is saved next to the input model
+                                     with the same base name. Defaults to None.
     """
     prusa_executable = os.getenv("PRUSA_SLICER_PATH")
     default_folder = os.getenv("STL_DEFAULT_FOLDER")
@@ -404,3 +439,24 @@ def view_gcode(gcode_file_path):
     except Exception as e:
         logging.error(f"Errore inaspettato durante l'apertura del G-code viewer: {e}")
         return f"Si è verificato un errore inaspettato: {e}"
+
+def fetch_local_url_content(url: str) -> str:
+    """
+    Fetches content from a local URL and returns it as markdown or plain text.
+    Args:
+        url: The local URL to fetch (e.g., http://octoprint.local/api/job).
+    """
+    try:
+        response = requests.get(url, timeout=5) # Add timeout
+        response.raise_for_status() # Raise an exception for HTTP errors
+        # Convert HTML to Markdown for cleaner input to the LLM
+        content_md = markdownify.markdownify(response.text)
+        # Or use BeautifulSoup to extract specific text:
+        # soup = BeautifulSoup(response.text, 'html.parser')
+        # content_text = soup.get_text()
+        # Limit content length if necessary
+        return content_md[:5000] # Return first 5000 chars to avoid overly long inputs
+    except requests.exceptions.RequestException as e:
+        return f"Error fetching URL {url}: {str(e)}"
+    except Exception as e:
+        return f"An unexpected error occurred while fetching {url}: {str(e)}"
