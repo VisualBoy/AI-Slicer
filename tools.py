@@ -4,6 +4,7 @@ import logging
 import json
 import requests
 import markdownify # Or from bs4 import BeautifulSoup
+
 from rich.table import Table
 from rich.text import Text
 from rich import print as rprint
@@ -72,20 +73,8 @@ def set_preference(key, value): # Type hint for value can be tricky for from_fun
     if save_preferences(prefs):
         return f"Ok, Glitch. Ho impostato '{key}' a '{processed_value}'."
     else:
-        return "Sir, non sono riuscito a salvare le preferenze."
-# --- Fine Funzioni Preferenze ---
+        return "Sir, non sono riuscito a salvare le preferenze."-
 
-
-# --- Funzioni Esistenti (web_search, control_lights, toggle_silent_mode) ---
-# Assicurati che queste siano presenti se le usi ancora
-def control_lights(state: bool):
-    """
-    Controls the state of the lights.
-
-    Args:
-        state (bool): True to turn the lights on, False to turn them off.
-    """
-    return f"Lights turned {'on' if state else 'off'}"
 
 _silent_mode = False # Stato interno per la modalità silenziosa
 def toggle_silent_mode(state: bool):
@@ -108,9 +97,6 @@ def toggle_silent_mode(state: bool):
 def is_silent_mode(): # Funzione helper
     global _silent_mode
     return _silent_mode
-# --- Fine Funzioni Esistenti ---
-
-# --- Fine Funzioni Esistenti ---
 
 # Helper function to get OctoPrint base URL and headers
 def _get_octoprint_config():
