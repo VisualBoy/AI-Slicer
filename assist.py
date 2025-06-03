@@ -15,7 +15,6 @@ import shared_variables # Importa per last_gcode_path
 # genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 # For this project, you'll likely use the 'gemini-pro' model
 # or the latest recommended model for tool use.
-model = genai.GenerativeModel(model_name="gemini-1.5-flash-latest")
 
 # Define your function declarations
 fetch_content_tool = FunctionDeclaration(
@@ -35,6 +34,11 @@ fetch_content_tool = FunctionDeclaration(
 
 # Create a Tool object
 available_tools = Tool(function_declarations=[fetch_content_tool])
+
+model = genai.GenerativeModel(
+    model_name="gemini-1.5-flash-latest",
+    tools=[available_tools] # Add this
+)
 # mixer.init() # Mixer viene inizializzato in ai-slicer.py
 
 function_map = {}
@@ -106,7 +110,6 @@ def ask_question_memory(question):
 
         chat_session = model.start_chat(
             history=gemini_history, # Pass the adapted history
-            tools=[available_tools],
             enable_automatic_function_calling=False # We are doing manual calling
         )
         response = chat_session.send_message(question)
