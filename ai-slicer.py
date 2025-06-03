@@ -171,6 +171,7 @@ if __name__ == '__main__':
                     else:
                         # This print can be logging.info or logging.debug
                         # print("[DEBUG] Hotword non trovata e nessuna risposta attesa. Ignoro.")
+                        pass  # Added to ensure an indented block after 'else'
             
             if not current_text and not mixer.music.get_busy() and not recorder.is_recording and not tools.is_silent_mode():
                 # print("[DEBUG] Controllo di sicurezza: riattivo il registratore.")
