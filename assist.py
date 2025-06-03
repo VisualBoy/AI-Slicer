@@ -6,6 +6,7 @@ import logging # Aggiungi import per logging
 import google.generativeai as genai
 from google.generativeai.types import Tool, FunctionDeclaration
 import tools # Assicurati che tools sia importato
+import inspect # Add this import at the top of assist.py
 import shared_variables # Importa per last_gcode_path
 
 # Configura il logging anche qui se vuoi messaggi specifici da assist.py
@@ -16,28 +17,57 @@ import shared_variables # Importa per last_gcode_path
 # For this project, you'll likely use the 'gemini-pro' model
 # or the latest recommended model for tool use.
 
-# Define your function declarations
-fetch_content_tool = FunctionDeclaration(
-    name="fetch_local_url_content",
-    description="Fetches the textual content from a given URL on the local network. Use this to get status from 3D printers or other local devices.",
-    parameters={
-        "type": "object",
-        "properties": {
-            "url": {
-                "type": "string",
-                "description": "The full local URL to fetch (e.g., http://192.168.1.100/status)."
-            }
-        },
-        "required": ["url"]
-    }
-)
+def get_tool_declarations_from_tools_module() -> list[FunctionDeclaration]:
+    """
+    Dynamically generates FunctionDeclaration objects for all public functions
+    in the 'tools' module using FunctionDeclaration.from_func().
+    """
+    declarations = []
+    # Functions to explicitly exclude if from_func has issues or they are not meant to be tools
+    # Even if public, is_silent_mode is a helper for flow control, not a direct AI tool.
+    # load_preferences and save_preferences are also internal helpers.
+    # get_files_from_default_folder is a helper for list_stl_files.
+    EXCLUDE_FUNCTIONS = [
+        "is_silent_mode",
+        "load_preferences",
+        "save_preferences",
+        "get_files_from_default_folder"
+    ]
 
-# Create a Tool object
-available_tools = Tool(function_declarations=[fetch_content_tool])
+    for name, func in inspect.getmembers(tools, inspect.isfunction):
+        if name.startswith('_') or name in EXCLUDE_FUNCTIONS:
+            continue  # Skip private functions and explicitly excluded ones
+
+        # Ensure the function is defined directly in the tools module, not imported
+        if func.__module__ != tools.__name__:
+            logging.debug(f"Skipping '{name}' as it's imported into tools, not defined in it.")
+            continue
+
+        try:
+            declaration = FunctionDeclaration.from_func(func)
+            declarations.append(declaration)
+            logging.info(f"Successfully created FunctionDeclaration for tool: {name}")
+        except Exception as e:
+            # Log the error and skip this function if from_func fails
+            logging.error(f"Failed to create FunctionDeclaration for tool '{name}': {e}. Skipping this tool.")
+
+    if not declarations:
+        logging.warning("No function declarations were generated from tools.py. Check logs for errors.")
+
+    return declarations
+
+# Dynamically create tool declarations
+all_function_declarations = get_tool_declarations_from_tools_module()
+if all_function_declarations:
+    available_tools = Tool(function_declarations=all_function_declarations)
+    logging.info(f"Gemini tools configured with {len(all_function_declarations)} declarations: {[d.name for d in all_function_declarations]}")
+else:
+    available_tools = None # Or Tool(function_declarations=[]) if an empty tool is preferred over None
+    logging.warning("No function declarations were successfully generated. Gemini will have no tools.")
 
 model = genai.GenerativeModel(
     model_name="gemini-1.5-flash-latest",
-    tools=[available_tools] # Add this
+    tools=available_tools
 )
 # mixer.init() # Mixer viene inizializzato in ai-slicer.py
 
