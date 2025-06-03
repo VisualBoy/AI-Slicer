@@ -71,7 +71,7 @@ if __name__ == '__main__':
     initial_greeting = "Ciao, sono Arturo. In cosa posso aiutarti?"
     console.print(initial_greeting) 
     if not tools.is_silent_mode(): 
-        assist.TTS(initial_greeting)
+        # assist.TTS(initial_greeting) # TODO: Re-enable TTS when a Gemini-compatible solution is implemented
         last_tts_end_time = time.time() 
 
     if not tools.is_silent_mode() and not recorder.is_recording:
@@ -152,7 +152,7 @@ if __name__ == '__main__':
 
                         if not tools.is_silent_mode():
                             # print("[DEBUG] Avvio TTS per la risposta di Arturo...")
-                            assist.TTS(response) 
+                            # assist.TTS(response) # TODO: Re-enable TTS when a Gemini-compatible solution is implemented
                             # print("[DEBUG] TTS di Arturo completato.")
                             last_tts_end_time = time.time() 
                             

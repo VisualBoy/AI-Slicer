@@ -4,3 +4,6 @@ realtimestt
 googlesearch-python
 python-dotenv
 rich
+google-generativeai
+requests
+markdownify
