@@ -2,12 +2,11 @@ import time
 from pygame import mixer
 import os
 import json
-import logging # Aggiungi import per logging
-import google.generativeai as genai
-from google.generativeai.types import Tool, FunctionDeclaration
-import tools # Assicurati che tools sia importato
-import inspect # Add this import at the top of assist.py
-import shared_variables # Importa per last_gcode_path
+import logging
+import shared_variables
+from google import genai
+from google.genai import types
+from function_declarations import all_function_declarations
 
 # Configura il logging anche qui se vuoi messaggi specifici da assist.py
 # logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -17,71 +16,30 @@ import shared_variables # Importa per last_gcode_path
 # For this project, you'll likely use the 'gemini-pro' model
 # or the latest recommended model for tool use.
 
-def get_tool_declarations_from_tools_module() -> list[FunctionDeclaration]:
-    """
-    Dynamically generates FunctionDeclaration objects for all public functions
-    in the 'tools' module using FunctionDeclaration.from_func().
-    """
-    declarations = []
-    # Functions to explicitly exclude if from_func has issues or they are not meant to be tools
-    # Even if public, is_silent_mode is a helper for flow control, not a direct AI tool.
-    # load_preferences and save_preferences are also internal helpers.
-    # get_files_from_default_folder is a helper for list_stl_files.
-    EXCLUDE_FUNCTIONS = [
-        "is_silent_mode",
-        "load_preferences",
-        "save_preferences",
-        "get_files_from_default_folder"
-    ]
-
-    for name, func in inspect.getmembers(tools, inspect.isfunction):
-        if name.startswith('_') or name in EXCLUDE_FUNCTIONS:
-            continue  # Skip private functions and explicitly excluded ones
-
-        # Ensure the function is defined directly in the tools module, not imported
-        if func.__module__ != tools.__name__:
-            logging.debug(f"Skipping '{name}' as it's imported into tools, not defined in it.")
-            continue
-
-        try:
-            declaration = FunctionDeclaration.from_func(func)
-            declarations.append(declaration)
-            logging.info(f"Successfully created FunctionDeclaration for tool: {name}")
-        except Exception as e:
-            # Log the error and skip this function if from_func fails
-            logging.error(f"Failed to create FunctionDeclaration for tool '{name}': {e}. Skipping this tool.")
-
-    if not declarations:
-        logging.warning("No function declarations were generated from tools.py. Check logs for errors.")
-
-    return declarations
-
-# Dynamically create tool declarations
-all_function_declarations = get_tool_declarations_from_tools_module()
-if all_function_declarations:
-    available_tools = Tool(function_declarations=all_function_declarations)
-    logging.info(f"Gemini tools configured with {len(all_function_declarations)} declarations: {[d.name for d in all_function_declarations]}")
+# Retrieve available tool from function declarations
+function_declarations = all_function_declarations()
+if function_declarations:
+    available_tools = types.Tool(function_declarations=all_function_declarations)
+    logging.info(f"Gemini tools configured with {len(function_declarations)} declarations: {[d.name for d in function_declarations]}")
 else:
-    available_tools = None # Or Tool(function_declarations=[]) if an empty tool is preferred over None
-    logging.warning("No function declarations were successfully generated. Gemini will have no tools.")
+    available_tools = None # Or types.Tool(function_declarations=[]) if an empty tool is preferred over None
+    logging.warning("No function declarations were successfully found. AI-Slicer will have no tools.")
 
+# And use `available_tools` in your model.generate_content() or chat.send_message() calls.
+# For example:
+# model = genai.GenerativeModel(model_name="gemini-1.5-flash-latest", tools=[available_tools])
+# or
+# response = model.generate_content(prompt, tools=[gemini_tools])
+# or
+# chat_session = model.start_chat(tools=[available_tools], enable_automatic_function_calling=False)
+
+# initializing Gemini AI model
 model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash-latest",
+    model_name="gemini-2.5-flash-exp",
     tools=available_tools
 )
+
 # mixer.init() # Mixer viene inizializzato in ai-slicer.py
-
-function_map = {}
-try:
-    for func_name in dir(tools):
-        if not func_name.startswith('_'):
-            func = getattr(tools, func_name)
-            if callable(func):
-                function_map[func_name] = func
-    logging.info(f"Function map creata: {list(function_map.keys())}")
-except Exception as e:
-    logging.error(f"Errore nel creare function_map: {e}")
-
 
 conversation_history = [
     {
