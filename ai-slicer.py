@@ -8,8 +8,8 @@ import shared_variables # Per latest_text e lock
 import os
 from dotenv import load_dotenv, find_dotenv
 from rich.console import Console 
-from rich.spinner import Spinner # ADDED IMPORT
-import logging # ADDED IMPORT FOR LOGGING
+from rich.spinner import Spinner
+import logging 
 from rich.logging import RichHandler # ADDED IMPORT FOR RICH LOGGING
 
 # --- Debug Iniziale per .env ---
@@ -38,19 +38,21 @@ def listen_thread(recorder_instance):
 if __name__ == '__main__':
     # --- Configura Rich Logging ---
     logging.basicConfig(
-        level=logging.WARNING, # CHANGED to WARNING
+        level=logging.DEBUG, # CHANGED to WARNING
         format="%(message)s", 
         datefmt="[%X]",
-        handlers=[RichHandler(level=logging.WARNING, rich_tracebacks=True, show_path=False, log_time_format="[%X]")] # MODIFIED Handler
+        handlers=[RichHandler(level=logging.DEBUG, rich_tracebacks=True, show_path=False, log_time_format="[%X]")] # MODIFIED Handler
     )
     # Silence specific noisy loggers
     logging.getLogger("faster_whisper").setLevel(logging.WARNING)
     logging.getLogger("RealtimeSTT").setLevel(logging.WARNING)
     logging.getLogger("openai").setLevel(logging.WARNING)
-    logging.getLogger("httpx").setLevel(logging.WARNING) 
-    logging.getLogger("ctranslate2").setLevel(logging.WARNING) 
-    logging.getLogger("pkg_resources").setLevel(logging.ERROR) 
-    # --- Fine Configurazione Logging ---
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("ctranslate2").setLevel(logging.WARNING)
+    logging.getLogger("pkg_resources").setLevel(logging.ERROR)
+    logging.getLogger("google.generativeai").setLevel(logging.INFO)
+    logging.getLogger("genai").setLevel(logging.INFO)
+    # --- Fine Configurazione Logging ----
 
     mixer.init()  
 
@@ -64,11 +66,11 @@ if __name__ == '__main__':
         compute_type="float16"
     )
     
-    hot_words = ["arturo"] 
+    hot_words = ["arturo", "artur", "vez","coglione","testa di cazzo","miserabile","scemo di merda","porco dio"] 
     expecting_user_response = False 
     last_tts_end_time = 0.0 
 
-    initial_greeting = "Ciao, sono Arturo. In cosa posso aiutarti?"
+    initial_greeting = "Ciao vez, sono Arturo. In cosa posso aiutarti?"
     console.print(initial_greeting) 
     if not tools.is_silent_mode(): 
         # assist.TTS(initial_greeting) # TODO: Re-enable TTS when a Gemini-compatible solution is implemented
@@ -114,69 +116,80 @@ if __name__ == '__main__':
                     console.print("Ti ascolto...") 
 
 
-            time.sleep(0.5) 
-            current_text = ""
+            time.sleep(0.5)
+            text_from_stt = "" # Usa una variabile temporanea per chiarezza
             with shared_variables.latest_text_lock:
-                current_text = shared_variables.latest_text
-                shared_variables.latest_text = "" 
+                text_from_stt = shared_variables.latest_text
+                shared_variables.latest_text = "" # Svuota il buffer solo dopo aver letto il testo
 
-            if current_text:
-                console.print(f"[b style='dark_cyan']Utente:[/b style='dark_cyan'] [dark_cyan]{current_text}[/dark_cyan]") # MODIFIED for color
+            # Ora elabora il testo solo se non è vuoto
+            if text_from_stt:
+                console.print(f"[b style='dark_cyan']Utente:[/b style='dark_cyan'] [dark_cyan]{text_from_stt}[/dark_cyan]") # Stampa l'input dell'utente una volta qui
 
-                if (time.time() - last_tts_end_time) < 2.0: 
-                    # print("[DEBUG] Testo ignorato (probabile eco).")
-                    current_text = "" 
+                # Modifica la condizione per l'eco se necessario
+                if (time.time() - last_tts_end_time) < 0.5: # Ridotto a 0.5s, o rimuovi del tutto per test
+                    logging.debug("[DEBUG] Testo ignorato (probabile eco).")
+                    continue # Passa al prossimo ciclo se è eco
 
-                if current_text: 
-                    hotword_found = any(hot_word in current_text.lower() for hot_word in hot_words)
-                    # This print is a SUPER DEBUG, should likely stay as is or be logging.debug
-                    # print(f"[SUPER DEBUG] Testo='{current_text.lower()}' | Hotwords={hot_words} | 'arturo' in Testo?={'arturo' in current_text.lower()} | Risultato Finale={hotword_found}")
+                # Assegna il testo elaborato per il resto della logica nel blocco corrente
+                current_text_for_processing = text_from_stt # Usa un nome diverso per chiarezza, o semplicemente continua a usare text_from_stt
 
-                    if mixer.music.get_busy() and hotword_found:
-                        # print("[DEBUG] Interruzione TTS richiesta dall'utente.")
-                        mixer.music.stop()
-                        
-                    if hotword_found or expecting_user_response:
-                        # print("[DEBUG] Condizione per chiamare l'AI soddisfatta. Invio...")
-                        
-                        if recorder.is_recording:
-                            # print("[DEBUG] Metto in pausa il registratore per il TTS dell'AI...")
-                            recorder.stop()
-                        
-                        with console.status(Spinner("dots", text=" Arturo sta pensando...")):
-                            response = assist.ask_question_memory(current_text + " " + time.strftime("%D:%H:%M:%S"))
-                        
-                        console.print(f"[b style='dark_orange']Arturo:[/b style='dark_orange'] [dark_orange]{response}[/dark_orange]") # MODIFIED for color
+                # --- Inizio Blocco Logica di Elaborazione Testo (ora correttamente annidato) ---
+                hotword_found = any(hot_word in current_text_for_processing.lower() for hot_word in hot_words)
+                logging.debug(f"[SUPER DEBUG] Testo='{current_text_for_processing.lower()}' | Hotwords={hot_words} | 'arturo' in Testo?={'arturo' in current_text_for_processing.lower()} | Risultato Finale={hotword_found}")
 
-                        expecting_user_response = response.strip().endswith('?')
+                if mixer.music.get_busy() and hotword_found:
+                    logging.debug("[DEBUG] Interruzione TTS richiesta dall'utente.")
+                    mixer.music.stop()
 
-                        if not tools.is_silent_mode():
-                            # print("[DEBUG] Avvio TTS per la risposta di Arturo...")
-                            # assist.TTS(response) # TODO: Re-enable TTS when a Gemini-compatible solution is implemented
-                            # print("[DEBUG] TTS di Arturo completato.")
-                            last_tts_end_time = time.time() 
-                            
-                            lunghezza_risposta = len(response)
-                            pausa_stimata = min(max(0.5, lunghezza_risposta * 0.065), 10.0) 
-                            # print(f"[DEBUG] Pausa calcolata dopo TTS: {pausa_stimata:.2f}s (basata su {lunghezza_risposta} caratteri)")
-                            time.sleep(pausa_stimata)
-                        
-                        if not recorder.is_recording and not tools.is_silent_mode():
-                            # print("[DEBUG] Riattivo il registratore...")
-                            recorder.start()
-                            console.print("Ti ascolto...") 
-                        
-                        current_text = "" 
-                        continue 
-                    else:
-                        # This print can be logging.info or logging.debug
-                        # print("[DEBUG] Hotword non trovata e nessuna risposta attesa. Ignoro.")
-                        pass  # Added to ensure an indented block after 'else'
-            
-            if not current_text and not mixer.music.get_busy() and not recorder.is_recording and not tools.is_silent_mode():
-                # print("[DEBUG] Controllo di sicurezza: riattivo il registratore.")
+                if hotword_found or expecting_user_response:
+                    logging.debug("[DEBUG] Condizione per chiamare l'AI soddisfatta. Invio...")
+
+                    if recorder.is_recording:
+                        logging.debug("[DEBUG] Metto in pausa il registratore per il TTS dell'AI...")
+                        recorder.stop()
+
+                    with console.status(Spinner("dots", text=" Arturo sta pensando...")):
+                        # Usa current_text_for_processing per la chiamata all'AI
+                        response = assist.ask_question_memory(current_text_for_processing + " " + time.strftime("%D:%H:%M:%S"))
+
+                    console.print(f"[b style='dark_orange']Arturo:[/b style='dark_orange'] [dark_orange]{response}[/dark_orange]")
+
+                    expecting_user_response = response.strip().endswith('?')
+
+                    if not tools.is_silent_mode():
+                        # print("[DEBUG] Avvio TTS per la risposta di Arturo...") # TODO: Re-enable TTS
+                        # assist.TTS(response) # TODO: Re-enable TTS
+                        # print("[DEBUG] TTS di Arturo completato.")
+                        last_tts_end_time = time.time()
+
+                        lunghezza_risposta = len(response)
+                        pausa_stimata = min(max(0.5, lunghezza_risposta * 0.065), 10.0)
+                        logging.debug(f"[DEBUG] Pausa calcolata dopo TTS: {pausa_stimata:.2f}s (basata su {lunghezza_risposta} caratteri)")
+                        time.sleep(pausa_stimata)
+
+                    if not recorder.is_recording and not tools.is_silent_mode():
+                        logging.debug("[DEBUG] Riattivo il registratore...")
+                        recorder.start()
+                        console.print("Ti ascolto...")
+
+                    # Non svuotare current_text_for_processing qui, è una variabile locale al blocco if
+                    continue # Passa al prossimo ciclo dopo aver elaborato l'input
+
+                else:
+                    logging.debug("[DEBUG] Hotword non trovata e nessuna risposta attesa. Ignoro.")
+                    pass # Input ignorato, continua il loop
+
+            # --- Fine Blocco Logica di Elaborazione Testo ---
+
+
+            # Questo controllo di sicurezza ora non dipende da 'current_text'
+            if not text_from_stt and not mixer.music.get_busy() and not recorder.is_recording and not tools.is_silent_mode():
+                logging.debug("[DEBUG] Controllo di sicurezza: riattivo il registratore.")
                 recorder.start()
-                console.print("Ti ascolto...") 
+                console.print("Ti ascolto...")
+
+
 
 
     except KeyboardInterrupt:
