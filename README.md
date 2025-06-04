@@ -33,13 +33,13 @@ L'assistente, chiamato "Arturo", utilizza:
     ```bash
     python -m venv .venv
     source .venv/bin/activate  # Su Linux/macOS
-    .venv\Scriptsctivate    # Su Windows
+    .venv/bin/activate    # Su Windows
     ```
 3.  **Installa le Dipendenze:**
     ```bash
     pip install -r requirements.txt
     ```
-    (Assicurati che `requirements.txt` ora includa `google-generativeai`, `requests`, `markdownify`, `RealtimeSTT`, `faster_whisper`, `pygame`, `python-dotenv`, e PyTorch con supporto CUDA se usi la GPU).
+    (Assicurati che `requirements.txt` ora includa `google-generativeai`, `requests`, `markdownify`, `RealtimeSTT`, `faster_whisper`, `pygame`, `python-dotenv`, `rich` e `PyTorch` con supporto CUDA se usi la GPU).
 4.  **Configura PrusaSlicer:** Assicurati che PrusaSlicer sia installato.
 5.  **Configura Google Cloud e Gemini API:**
     *   Abilita la Gemini API nel tuo progetto Google Cloud.
@@ -72,11 +72,11 @@ Attendi il saluto testuale "Ciao, sono Arturo. In cosa posso aiutarti?" e poi in
 * `ai-slicer.py`: Script principale.
 * `assist.py`: Gestisce la comunicazione con l'API di **Google Gemini**, la cronologia della conversazione e la mappatura delle function calls (ora definite programmaticamente).
 * `tools.py`: Contiene l'implementazione Python delle funzioni che l'AI può chiamare (incl. `fetch_local_url_content`).
-* **`functions.json` (Obsoleto):** Non più utilizzato per definire le funzioni per l'AI.
 * `shared_variables.py`: Gestisce variabili condivise tra thread.
 * `.env`: File di configurazione.
 * `preferences.json`: File per salvare le preferenze utente.
 * `requirements.txt`: Elenco delle dipendenze Python.
+*  `3D_objects`: Cartella di default per i modelli 3D.
 
 ## Punti Chiave Discussi e Modifiche Apportate (Recenti)
 
