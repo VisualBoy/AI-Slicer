@@ -1,87 +1,126 @@
+# assist.py
 import time
 from pygame import mixer
 import os
 import json
-import logging # Aggiungi import per logging
+import logging
+import shared_variables
+from dotenv import load_dotenv, find_dotenv
+from rich.console import Console
+from rich.spinner import Spinner
+from rich.logging import RichHandler
+
 import google.generativeai as genai
-from google.generativeai.types import Tool, FunctionDeclaration
-import tools # Assicurati che tools sia importato
-import inspect # Add this import at the top of assist.py
-import shared_variables # Importa per last_gcode_path
+from google.generativeai import types
+
+from function_declarations import all_function_declarations
+# Import the tools module to access the function objects
+import tools
+
+env_path = find_dotenv()
+loaded = load_dotenv(env_path)
 
 # Configura il logging anche qui se vuoi messaggi specifici da assist.py
-# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+#logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.DEBUG, # Changed to DEBUG for more verbose output during development
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(level=logging.DEBUG, rich_tracebacks=True, show_path=False, log_time_format="[%X]")]
+)
+console = Console()
+
+
+
+# Carico la API Key dal env variables
+gemini_api_key = os.getenv("GEMINI_API_KEY")
+
+# Configura la chiave API
+if not gemini_api_key:
+    logging.error("Errore: GEMINI_API_KEY non trovata nel file .env. Assicurati che sia impostata.")
+else:
+    genai.configure(api_key=gemini_api_key)
+    logging.info("Chiave API Gemini configurata.")
+
+    logging.info("\nElenco dei modelli disponibili:")
+    try:
+        for m in genai.list_models():
+            if "generateContent" in m.supported_generation_methods:
+                logging.info(f" - {m.name} (Supported methods: {m.supported_generation_methods})")
+    except Exception as e:
+        logging.error(f"Errore durante il recupero dei modelli: {e}")
+        logging.info("Assicurati che la tua chiave API sia valida e che tu abbia una connessione a internet.")
+
 
 # Configure with your API key (use environment variables for security)
-# genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-# For this project, you'll likely use the 'gemini-pro' model
-# or the latest recommended model for tool use.
+genai.configure(api_key=gemini_api_key)
 
-def get_tool_declarations_from_tools_module() -> list[FunctionDeclaration]:
-    """
-    Dynamically generates FunctionDeclaration objects for all public functions
-    in the 'tools' module using FunctionDeclaration.from_func().
-    """
-    declarations = []
-    # Functions to explicitly exclude if from_func has issues or they are not meant to be tools
-    # Even if public, is_silent_mode is a helper for flow control, not a direct AI tool.
-    # load_preferences and save_preferences are also internal helpers.
-    # get_files_from_default_folder is a helper for list_stl_files.
-    EXCLUDE_FUNCTIONS = [
-        "is_silent_mode",
-        "load_preferences",
-        "save_preferences",
-        "get_files_from_default_folder"
-    ]
+# Retrieve available tool from function declarations
+available_tools = types.Tool(function_declarations=all_function_declarations)
 
-    for name, func in inspect.getmembers(tools, inspect.isfunction):
-        if name.startswith('_') or name in EXCLUDE_FUNCTIONS:
-            continue  # Skip private functions and explicitly excluded ones
-
-        # Ensure the function is defined directly in the tools module, not imported
-        if func.__module__ != tools.__name__:
-            logging.debug(f"Skipping '{name}' as it's imported into tools, not defined in it.")
-            continue
-
-        try:
-            declaration = FunctionDeclaration.from_func(func)
-            declarations.append(declaration)
-            logging.info(f"Successfully created FunctionDeclaration for tool: {name}")
-        except Exception as e:
-            # Log the error and skip this function if from_func fails
-            logging.error(f"Failed to create FunctionDeclaration for tool '{name}': {e}. Skipping this tool.")
-
-    if not declarations:
-        logging.warning("No function declarations were generated from tools.py. Check logs for errors.")
-
-    return declarations
-
-# Dynamically create tool declarations
-all_function_declarations = get_tool_declarations_from_tools_module()
-if all_function_declarations:
-    available_tools = Tool(function_declarations=all_function_declarations)
-    logging.info(f"Gemini tools configured with {len(all_function_declarations)} declarations: {[d.name for d in all_function_declarations]}")
-else:
-    available_tools = None # Or Tool(function_declarations=[]) if an empty tool is preferred over None
-    logging.warning("No function declarations were successfully generated. Gemini will have no tools.")
-
-model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash-latest",
-    tools=available_tools
-)
-# mixer.init() # Mixer viene inizializzato in ai-slicer.py
-
+# Dynamically create the function_map by mapping names from declarations to objects in tools
 function_map = {}
-try:
-    for func_name in dir(tools):
-        if not func_name.startswith('_'):
-            func = getattr(tools, func_name)
-            if callable(func):
-                function_map[func_name] = func
-    logging.info(f"Function map creata: {list(function_map.keys())}")
-except Exception as e:
-    logging.error(f"Errore nel creare function_map: {e}")
+if all_function_declarations:
+    for declaration in all_function_declarations:
+        function_name = declaration["name"]
+        try:
+            # Get the actual function object from the tools module using its string name
+            function_object = getattr(tools, function_name)
+            function_map[function_name] = function_object
+        except AttributeError:
+            # Log an error if a declared function is not found in the tools module
+            logging.error(f"Function '{function_name}' declared in function_declarations.py not found in tools.py! This tool will not be available.")
 
+if function_map: # Check if any functions were successfully mapped
+    # FIX: Changed function_declarations to all_function_declarations
+    # Also access the 'name' key from the dictionary within the list
+    # Use function_map keys for the list of available names for logging
+    logging.info(f"AI-Slicer tools available: {len(function_map)} declarations: {list(function_map.keys())}")
+else:
+    available_tools = None # Or types.Tool(function_declarations=[]) if an empty tool is preferred over None
+    logging.warning("No function declarations were successfully mapped to functions in tools.py. AI-Slicer will have no tools.")
+
+
+# And use `available_tools` in your model.generate_content() or chat.send_message() calls.
+# For example:
+# model = genai.GenerativeModel(model_name="gemini-1.5-flash-latest", tools=[available_tools])
+# or
+# response = model.generate_content(prompt, tools=[gemini_tools])
+# or
+# chat_session = model.start_chat(tools=[available_tools], enable_automatic_function_calling=False)
+
+
+# Check the NEW documentation here: https://googleapis.github.io/python-genai/#system-instructions-and-other-configs
+
+# FIX: Remove the explicit genai.Client instantiation
+# client = genai.Client(
+#     api_key='GEMINI_API_KEY', # This was also incorrect, should use os.environ
+#     http_options=types.HttpOptions(api_version='v1alpha')
+# )
+
+# For RAG
+# document = genai.upload_file(file=media / "a11.txt") # FIX: Use genai.upload_file directly
+
+# Model Name (This line is now part of the GenerativeModel initialization below, no need for a separate variable here unless used elsewhere)
+# model_name = "gemini-1.5-flash-001" # This line can be removed if not used elsewhere
+
+# Cache for long context like RAG
+# cache = genai.create_cached_content( # FIX: Use genai.create_cached_content directly
+    # model="gemini-1.5-flash-001", # Specify model name here if needed for cache
+    # config=types.CreateCachedContentConfig(
+        # contents=[document],
+        # system_instruction="You are an expert analyzing transcripts.",
+    # ),
+# )
+
+# initializing Gemini AI model with available tools
+# Ensure available_tools is not None if you proceed
+model = genai.GenerativeModel(
+    model_name="gemini-1.5-flash-latest", # Using the latest flash model as per your list
+    tools=available_tools if available_tools and function_map else None # Only pass tools if any were mapped
+)
+
+# mixer.init() # Mixer viene inizializzato in ai-slicer.py
 
 conversation_history = [
     {
@@ -97,7 +136,6 @@ def ask_question_memory(question):
 
     try:
         # Ensure 'model' and 'available_tools' are accessible in this function's scope
-        # Ensure 'function_map' (mapping function names to actual functions in tools.py) is up-to-date and accessible.
         # Ensure genai is imported: import google.generativeai as genai
         # Ensure 'shared_variables' is imported for last_gcode_path
 
@@ -143,12 +181,18 @@ def ask_question_memory(question):
             enable_automatic_function_calling=False # We are doing manual calling
         )
         response = chat_session.send_message(question)
-        logging.debug(f"[DEBUG] Risposta raw da Gemini (oggetto): {response}")
+        logging.info(f"[DEBUG] Risposta raw da Gemini (oggetto): {response}")
 
-        while response.candidates[0].function_calls:
-            function_call = response.candidates[0].function_calls[0]
+        # FIX: Robustly check for function calls in the response
+        # Loop as long as the model wants to make function calls
+        while response.candidates and \
+              response.candidates[0].content.parts and \
+              hasattr(response.candidates[0].content.parts[0], 'function_call'):
+
+            function_call_part = response.candidates[0].content.parts[0]
+            function_call = function_call_part.function_call
             function_name = function_call.name
-            args = dict(function_call.args)
+            args = dict(function_call.args) if function_call.args else {}
 
             logging.info(f"Tool call da Gemini: {function_name}({args})")
 
@@ -159,6 +203,7 @@ def ask_question_memory(question):
             })
 
             function_response_content = None
+            # Use the dynamically created function_map here
             if function_name in function_map:
                 try:
                     if function_name == "slice_model" and isinstance(args, dict):
@@ -171,40 +216,54 @@ def ask_question_memory(question):
                             function_response_content = str(tool_call_result)
                     elif function_name == "fetch_local_url_content":
                         function_response_content = function_map[function_name](url=args.get("url"))
+                    # Add specific handling for other functions if needed, or use a generic call
                     else:
+                         # Call the function using the dynamically obtained function object
                         function_response_content = str(function_map[function_name](**args))
+
                 except Exception as e:
                     logging.error(f"Error executing function {function_name}: {str(e)}")
                     function_response_content = f"Error executing function {function_name}: {str(e)}"
             else:
-                logging.warning(f"Function {function_name} not found in function_map.")
-                function_response_content = f"Error: Function {function_name} not found."
+                # This should ideally not happen if function_map is built correctly from declarations
+                logging.warning(f"Function {function_name} requested by AI not found in function_map.")
+                function_response_content = f"Error: Function {function_name} not found or not mapped."
 
             if function_response_content is not None:
                 # Append tool response to our local conversation_history for logging/debug
+                # Nota: la struttura della history è ancora basata su un formato che potrebbe non essere esattamente
+                # quello interno di Gemini, ma serve per il tuo logging locale.
                 conversation_history.append({
-                    "role": "tool",
-                    "parts": [{"function_response": {"name": function_name, "response": {"content": function_response_content}}}]
+                    "role": "tool", # O 'function', a seconda di come vuoi rappresentarlo localmente
+                    "parts": [{"function_response": {"name": function_name, "response": {"content": function_response_content}}}] # Mantieni per history locale
                 })
 
+                # Send the function response back to the model using the new SDK structure
                 response = chat_session.send_message(
-                    [genai.Part(function_response=genai.protos.FunctionResponse(
-                        name=function_name,
-                        response={"content": function_response_content}
-                    ))]
+                    genai.Content( # Usa genai.Content
+                        role='function', # Il ruolo per le risposte di funzione
+                        parts=[genai.protos.FunctionResponse( # genai.protos.FunctionResponse va nei parts
+                            name=function_name,
+                            response={"content": function_response_content} # Struttura della risposta della funzione
+                        )]
+                    )
                 )
-                logging.debug(f"[DEBUG] Risposta raw da Gemini dopo function call (oggetto): {response}")
+                logging.debug(f"[DEBUG] Risposta raw da Gemini after function call (object): {response}")
             else:
-                # This case should ideally not be reached
-                logging.error("function_response_content was None, breaking loop.")
+                # Handle the case where function_response_content is None (should not happen often)
+                logging.error("function_response_content was None, sending error response to model.")
                 response = chat_session.send_message(
-                    [genai.Part(function_response=genai.protos.FunctionResponse(
-                        name=function_name,
-                        response={"content": "Error: Could not execute function or function not found."}
-                    ))]
+                    genai.Content( # Anche qui usa types.Content
+                        role='function',
+                        parts=[types.FunctionResponse(
+                            name=function_name,
+                            response={"content": "Error: Could not execute function or function returned no content."}
+                        )]
+                    )
                 )
-                break
+                break # Break the loop if function_response_content is None
 
+        # After the loop (when response is a text response or no more function calls)
         final_text_response = response.text
         # Append AI's final response to our log
         conversation_history.append({"role": "assistant", "content": final_text_response})
@@ -241,7 +300,10 @@ def ask_question_memory(question):
 #         logging.error(f"Errore nel riprodurre suono {file_path}: {e}")
 
 # def TTS(text):
-#     if tools.is_silent_mode():
+#     # is_silent_mode needs to be imported from tools
+#     # from tools import is_silent_mode
+#     # if is_silent_mode():
+#     if False: # Temporarily disabled check as is_silent_mode is not imported
 #         print(f"Arturo (testo): {text}")
 #         return "Silent mode active. Response printed only."
 
@@ -261,7 +323,10 @@ def ask_question_memory(question):
 # # TTS_with_interrupt non è stata modificata molto, ma la sua efficacia
 # # dipende da come il registratore viene gestito in ai-slicer.py
 # def TTS_with_interrupt(text, hot_words):
-#     if tools.is_silent_mode():
+#     # is_silent_mode needs to be imported from tools
+#     # from tools import is_silent_mode
+#     # if is_silent_mode():
+#     if False: # Temporarily disabled check as is_silent_mode is not imported
 #         print(f"Arturo (testo): {text}")
 #         return "Silent mode active. Response printed only."
 
@@ -296,21 +361,28 @@ def ask_question_memory(question):
 #             logging.warning(f"Impossibile rimuovere il file audio temporaneo {speech_file_path}: {e}")
 #     return "done"
 
+
 if __name__ == "__main__": # Per testare assist.py separatamente
     mixer.init() # Necessario per testare TTS
     # tools._silent_mode = False # Per testare TTS
+    # function_map is now created dynamically above
 
     # Test TTS
     # print("Testo TTS: 'Ciao, questo è un test.'")
     # TTS("Ciao, questo è un test.")
 
-    # Test ask_question_memory (richiede functions.json e tools.py configurati)
+    # Test ask_question_memory (richiede .env configurato e file nella cartella STL)
     # print("\nTest di ask_question_memory:")
     # response = ask_question_memory("elenca i file")
     # print("Risposta AI:", response)
-    # if not tools.is_silent_mode(): TTS(response)
+    # # Need to import is_silent_mode from tools for this line
+    # # from tools import is_silent_mode
+    # # if not is_silent_mode(): TTS(response)
 
     # response = ask_question_memory("processa il file numero 1")
     # print("Risposta AI:", response)
-    # if not tools.is_silent_mode(): TTS(response)
+    # # Need to import is_silent_mode from tools for this line
+    # # from tools import is_silent_mode
+    # # if not is_silent_mode(): TTS(response)
     pass # Lascia vuoto o aggiungi test specifici per assist.py
+
