@@ -49,32 +49,6 @@ def save_preferences(prefs):
         logging.error(f"Errore nel salvare le preferenze: {e}")
         return False
 
-def set_preference(key, value): # Type hint for value can be tricky for from_func if it's truly 'any'
-    """
-    Sets a specific user preference and saves it to a file.
-
-    Use this to remember user choices like default layer height, slicer options, etc.
-
-    Args:
-        key (str): The name of the preference to set (e.g., "default_layer_height").
-        value (any): The value for the preference (e.g., "0.2", 25, true). It will be stored and can be a string, number, or boolean.
-    """
-    prefs = load_preferences()
-    # Prova a convertire il valore se è un numero (per altezza layer, infill, ecc.)
-    try:
-        if '.' in str(value): # Se c'è un punto, prova a convertirlo in float
-            processed_value = float(value)
-        else: # Altrimenti, prova a convertirlo in int
-            processed_value = int(value)
-    except ValueError: # Se non è un numero, lascialo come stringa
-        processed_value = value
-        
-    prefs[key] = processed_value
-    if save_preferences(prefs):
-        return f"Ok, Glitch. Ho impostato '{key}' a '{processed_value}'."
-    else:
-        return "Sir, non sono riuscito a salvare le preferenze."-
-
 
 _silent_mode = False # Stato interno per la modalità silenziosa
 def toggle_silent_mode(state: bool):
