@@ -100,7 +100,7 @@
         },
         "required": ["gcode_file_path"]
       }
-    }
+    },
     {
       "name": "octoprint_list_files",
       "description": "Lists files present on OctoPrint.",

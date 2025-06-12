@@ -1,6 +1,6 @@
 openai
-pygame
-realtimestt
+google-generativeai
+pyaudio
 googlesearch-python
 python-dotenv
 rich
